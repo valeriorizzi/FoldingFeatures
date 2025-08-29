@@ -1089,7 +1089,7 @@ if df_hard_sigU.empty == False:
     listcv +="cont_HB_hardU,NWH_hardU,NWO_hardU,NPA_hardU,NPD_hardU,"
     
     for i in range(0,len(df_hard_sigU)):
-            desc=str(df_hard_sigF['labels'].iloc[i])
+            desc=str(df_hard_sigU['labels'].iloc[i])
             NWH=desc.replace('hbond','VA' )
             NWO=desc.replace('hbond','VH')
             NPA=desc.replace('hbond','NPA')
@@ -1444,7 +1444,7 @@ for i in range(0,len(df_solvation_NO)):
 output.write('\n')
 
 if args_explicit:
-    to_write = 'PRINT ARG=diffHB_compact,cmap_compact,diffHB_non_compact,cmap_non_compact STRIDE='+str(stride)+ ' FILE=COLVAR_diff'
+    to_write = 'PRINT ARG=diffHB_compact,cmap_compact,diffHB_non_compact,cmap_non_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
 else:
         to_write = 'PRINT ARG=diffHB_compact,cmap_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
 
