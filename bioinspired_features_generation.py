@@ -279,10 +279,11 @@ for i in range(0, len(list_hbond_donors)): # to go through the H-bond donors lis
     for j in range(0, list_hbond_donors[i].shape[0]): 
         for z in range(0, len(list_hbond_acceptors)):
             for y in range(0, list_hbond_acceptors[z].shape[0]): # to go through the H-bond acceptors list
-                label = str(list_hbond_donors[i]['name'][j]) + "_" + str(list_hbond_donors[i]['serial'][j]) + "-" + str(list_hbond_acceptors[z]['name'][y]) + "_" + str(list_hbond_acceptors[z]['serial'][y])
-                s = label + ": DISTANCE ATOMS=" + str(list_hbond_donors[i]['serial'][j]) + "," + str(list_hbond_acceptors[z]['serial'][y])
-                output.write(s)
-                output.write('\n')
+                if list_hbond_donors[i]['resSeq'][j] != list_hbond_acceptors[z]['resSeq'][y]:
+                    label = str(list_hbond_donors[i]['name'][j]) + "_" + str(list_hbond_donors[i]['serial'][j]) + "-" + str(list_hbond_acceptors[z]['name'][y]) + "_" + str(list_hbond_acceptors[z]['serial'][y])
+                    s = label + ": DISTANCE ATOMS=" + str(list_hbond_donors[i]['serial'][j]) + "," + str(list_hbond_acceptors[z]['serial'][y])
+                    output.write(s)
+                    output.write('\n')
             
 output.write('\n')
 # compute the distance each args_stride frames to save computational time since there will be a high number of distances to compute
@@ -1509,7 +1510,7 @@ if args_pymol:
         # get type of hbond and prepare label name
         strength = "Hard" if row['Hard'] else "Soft"
         state = "Folded" if row ['Significant folded'] else "Unfolded"
-        dist_name = f"hbond_{strength}_{state}" + "_lda_{0:.2f}".format(row['lda'])
+        dist_name = f"hbond_{strength}_{state}_{atom_a}_{atom_b}" + "_lda_{0:.2f}".format(row['lda'])
         # draw the distance, hide the label (confusing), and color accordingly
         cmd.distance(dist_name, f"id {atom_a}", f"id {atom_b}")
         cmd.hide("labels", dist_name)
@@ -1568,3 +1569,4 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
+
