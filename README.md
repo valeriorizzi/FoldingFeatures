@@ -2,7 +2,7 @@
 
 This repository contains two Python scripts to prepare PLUMED[^1] files for OneOPES[^2] simulations as outlined in the following paper:
 
-> PAPER LINK
+> [The Arch from the Stones: Understanding Protein Folding Energy Landscapes via Bioinspired Collective Variables](https://doi.org/10.1021/acs.jpclett.5c02079)
 
 Specifically `bioinspired_features.py` generates features based on two unbiased simulations in PLUMED syntax, while `oneopes_files_generation.py` prepares the input files for OneOPES simulations.
 
