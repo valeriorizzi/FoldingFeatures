@@ -240,8 +240,10 @@ if not args_yes:
 
 logging.info(' BIOINSPIRED_FEATURES_GENERATION Python script version ' + str(version))
 logging.info(' Please read and cite the following reference:')
-logging.info(' XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx')
-logging.info(' Main contributors: Margaux Héritier, Valerio Rizzi, Nicola Piasentin, Simone Aureli, Francesco Luigi Gervasio.')
+logging.info(' The Arch from the Stones: Understanding Protein Folding Energy Landscapes via Bioinspired Collective Variables')
+logging.info(' The Journal of Physical Chemistry Letters, 16, 9636-9645, (2025)')
+logging.info(' Rizzi, V., Héritier, M., Piasentin, N., Aureli, S., & Gervasio, F. L.')
+logging.info(' doi: 10.1021/acs.jpclett.5c02079')
 logging.info(' Command Line:')
 logging.info(' python bioinspired_features_generation_v.1.py -F '+ str(args_path_folded) + ' -U ' + str(args_path_unfolded) + ' -r ' + str(args_reference) + ' -rp ' + str(args_reference_protein) + ' -rca ' + str(args_reference_ca) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
 logging.info(' Started on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
@@ -1569,4 +1571,5 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
+
 
