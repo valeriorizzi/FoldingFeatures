@@ -194,11 +194,11 @@ if args_pymol:
     except ImportError:
         print("WARNING: Module pymol not found. Is it installed?")
         print("WARNING: Will not print the pymol session...")
-        pymol_viz = False
+        args_pymol = False
     except:
         print("WARNING: Cannot use pymol module, but it was found. Something else went wrong!")
         print("WARNING: Will not print the pymol session...")
-        pymol_viz = False
+        args_pymol = False
     else:
         from pymol import cmd
 
@@ -1571,5 +1571,6 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
+
 
 
