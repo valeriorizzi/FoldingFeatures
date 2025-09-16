@@ -6,6 +6,8 @@ This repository contains two Python scripts to prepare PLUMED[^1] files for OneO
 
 Specifically `bioinspired_features.py` generates features based on two unbiased simulations in PLUMED syntax, while `oneopes_files_generation.py` prepares the input files for OneOPES simulations.
 
+<img src="./movie_trp_small.gif" width="600"> 
+
 ## Requirements
 The script requires Python3 with
 - mdtraj
