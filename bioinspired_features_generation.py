@@ -117,6 +117,7 @@ parser.add_argument("-rca", "--reference_CA", required=True, type=os.path.abspat
 parser.add_argument("-mc", "--mcfile", required=True, type=os.path.abspath, help="PLUMED mcfile")
 
 # other options
+parser.add_argument("-w", "--where", required=False, default="protein", type=str, help="Selection in mdtraj lingo. Default is 'protein'")
 parser.add_argument("-l", "--lda", required=False, default=0.3, type=float, help="lda value to use for the filtering. Default: 0.3")
 parser.add_argument("-c", "--cutoff", required=False, default=0.6, type=float, help="cutoff value to use for the filtering. Default: 0.6nm")
 parser.add_argument("-s", "--stride", required=False, default=10, type=int, help="STRIDE for the PLUMED file in the filtering steps. Default: 10")
@@ -141,6 +142,7 @@ args_reference_protein = args.reference_protein
 args_reference_ca = args.reference_CA
 args_mcfile = args.mcfile
 # additional parameters
+args_where = args.where
 args_lda = args.lda
 args_cutoff = args.cutoff
 args_stride = args.stride
@@ -245,12 +247,13 @@ logging.info(' The Journal of Physical Chemistry Letters, 16, 9636-9645, (2025)'
 logging.info(' Rizzi, V., Héritier, M., Piasentin, N., Aureli, S., & Gervasio, F. L.')
 logging.info(' doi: 10.1021/acs.jpclett.5c02079')
 logging.info(' Command Line:')
-logging.info(' python bioinspired_features_generation_v.1.py -F '+ str(args_path_folded) + ' -U ' + str(args_path_unfolded) + ' -r ' + str(args_reference) + ' -rp ' + str(args_reference_protein) + ' -rca ' + str(args_reference_ca) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
+logging.info(' python bioinspired_features_generation.py -F '+ str(args_path_folded) + ' -U ' + str(args_path_unfolded) + ' -r ' + str(args_reference) + ' -rp ' + str(args_reference_protein) + ' -rca ' + str(args_reference_ca) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
 logging.info(' Started on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 logging.info('\n')
 
-# load reference PDB file (only protein)
-topology = mdtraj.load(args_reference_protein).topology
+# load reference PDB file, just the selection requested
+full_topology = mdtraj.load(args_reference_protein, top=args_reference_protein).topology
+topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select(args_where)).topology
 table, bonds = topology.to_dataframe()
 
 # generate a list of dataframes of all the hydrogens that could participate in H-bonds in args_reference_protein
@@ -295,10 +298,10 @@ output.close()
 
 print("Running plumed_1.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} 1> plumed_1_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --ixtc {args_folded_trajectory} 1> plumed_1_folded.out")
 print("Running plumed_1.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} 1> plumed_1_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --ixtc {args_unfolded_trajectory} 1> plumed_1_unfolded.out")
 os.chdir(inp_dir)
 
 print("Reading COLVAR file for the first filter ...")
@@ -471,10 +474,10 @@ outfile.close()
 
 print("Running plumed_2.dat file on folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} 1> plumed_2_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --ixtc {args_folded_trajectory} 1> plumed_2_folded.out")
 print("Running plumed_2.dat file on unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} 1> plumed_2_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --ixtc {args_unfolded_trajectory} 1> plumed_2_unfolded.out")
 os.chdir(inp_dir)
 
 print("Reading COLVAR files ...")
@@ -649,10 +652,10 @@ output.close()
 
 print("Running plumed_3.dat on folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --mf_xtc {args_folded_trajectory}  --pdb {args_reference} 1> plumed_3_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_folded_trajectory}  1> plumed_3_folded.out")
 print("Running plumed_3.dat on unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --mf_xtc {args_unfolded_trajectory}  --pdb {args_reference} 1> plumed_3_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_unfolded_trajectory}  1> plumed_3_unfolded.out")
 os.chdir(inp_dir)
 
 # read the COLVAR files for the virtual contacts
@@ -717,10 +720,10 @@ output.close()
 
 print("Running plumed_SC.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} --mc {args_mcfile} 1> plumed_SC_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} 1> plumed_SC_folded.out")
 print("Running plumed_SC.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} --mc {args_mcfile} 1> plumed_SC_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} 1> plumed_SC_unfolded.out")
 os.chdir(inp_dir)
 
 # read the COLVAR files for the side chain contacts
@@ -770,10 +773,10 @@ output.close()
 
 print("Running plumed_solvation.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} 1> plumed_solvation_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --ixtc {args_folded_trajectory} 1> plumed_solvation_folded.out")
 print("Running plumed_solvation.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} 1> plumed_solvation_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --ixtc {args_unfolded_trajectory} 1> plumed_solvation_unfolded.out")
 os.chdir(inp_dir)
 
 os.system(f'sed -i "s/#NLIST/NLIST/g" {inp_dir}/plumed_solvation.dat') ##DEBUG
@@ -1467,10 +1470,10 @@ outfile.close()
 print("Running the final plumed file on the folded trajectory ...")
 os.chdir(args_folded_dir)
 os.system(f'sed -i "s/NLIST/#NLIST/g" {inp_dir}/plumed_final_noduplicate.dat') ##DEBUG
-os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} --mc {args_mcfile} 1> plumed_final_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} 1> plumed_final_folded.out")
 print("Running the final plumed file on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} --mc {args_mcfile} 1> plumed_final_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} 1> plumed_final_unfolded.out")
 os.chdir(inp_dir)
 os.system(f'sed -i "s/#NLIST/NLIST/g" {inp_dir}/plumed_final_noduplicate.dat') ##DEBUG
 
