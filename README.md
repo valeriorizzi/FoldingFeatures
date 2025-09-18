@@ -32,22 +32,16 @@ The script for feature extraction `bioinspired_features.py` requires a few manda
 python bioinspired_features.py --h
 ```
 Six files are requested, namely
-- xtc trajectory of the protein folded (`-F`)
-- xtc trajectory of the protein unfolded (`-U`)
-- pdb file of the full solvated box (`-r`)
-- pdb file of the folded protein (`-rp`)
-- pdb file of the alpha carbons of the protein (`-rca`)
+- xtc trajectory of the protein folded (`-f`)
+- xtc trajectory of the protein unfolded (`-u`)
+- pdb file of the full box (`-r`)
 - mcfile containing the masses and the charges of the system (`-mc`). This can be generated with the PLUMED function [DUMPMASSCHARGE](https://www.plumed.org/doc-v2.9/user-doc/html/_d_u_m_p_m_a_s_s_c_h_a_r_g_e.html)
-
-Note that the reference file for the protein (`-rp`) will be the atoms considered for the features. It can be only part of a bigger system, but must keep the same atom index as the topology of the trajectory. 
 
 The script produces a series of PLUMED files to analyze the trajectories. As such, the folded and unfolded trajectories should be in different directories so that these files do not overwrite each other. An archetypical directory organization may look like the following
 ```
 parent_directory
 │   bioinspired_features_generation.py
-│   folded_protein.pdb
-│   folded_protein_CA.pdb
-|   full_solvated_box.pdb
+|   full_box.pdb
 |   mcfile
 |
 └───folded_trajectory
@@ -58,16 +52,17 @@ parent_directory
 ```
 With respect to this organization, the basic command to run the script would look like the following
 ```
-python bioinspired_features_generation.py -F ./folded_trajectory/folded.xtc -U ./unfolded_trajectory/unfolded.xtc -r full_solvated_box.pdb -rp folded_protein.pdb -rca folded_protein_CA.pdb -mc mcfile
+python bioinspired_features_generation.py -f ./folded_trajectory/folded.xtc -u ./unfolded_trajectory/unfolded.xtc -r full_box.pdb -mc mcfile
 ```
-An example of files and directory organization is provided in [example_TRP](https://github.com/heritiem/bioinspired_features/tree/main/example_TRP) for tryptophan-cage, which is the same as the one used in the publication. At the end of the analysis, the script sumarizes the main run details and the features in the `bioinspired_features.log` file. 
+An example of files and directory organization is provided in [example_TRP](https://github.com/valeriorizzi/FoldingFeatures/tree/subselection_feature/example_TRP) for tryptophan-cage, which is the same as the one used in the publication. At the end of the analysis, the script sumarizes the main run details on the screen and the features in the `bioinspired_features.log` file. 
 
 ### Optional flags
 The `bioinspired_features_generation.py` script has a number of optional flags, namely
-- For more control over the filtering process, both the cutoff (default: 0.6 nm) and the lda threshold values (default: 0.3) can be changed with the flags `-c` and `-l`, respectively
-- The flag `-py` produces a PyMOL session which contains all the detected features (h-bonds and contacts)
-- The flag `-e` produces more explicit PLUMED files. These are easier to read (for humans) but result in a much slower simulation if used for running biased MD
-- The flag `-y` run the script without asking any confirmation to the user
+- The flag `-w` allows for the selection of only part of the pdb file to run the analysis, by default it is run on all the protein group in the pdb provided. The syntax is the same as the one from [mdtraj](https://mdtraj.org/1.9.4/atom_selection.html). For example, if one wants to investigate the features only between residue 100 to 110 and 160 to 170, then the selection would be `-w 'protein and (residue 100 to 110 or residue 160 to 170)'`. Notice how the flag is passed as a string.
+- For more control over the filtering process, both the cutoff (default: 0.6 nm) and the lda threshold values (default: 0.3) can be changed with the flags `-c` and `-l`, respectively.
+- The flag `-py` produces a PyMOL session which contains all the detected features (h-bonds and contacts).
+- The flag `-e` produces more explicit PLUMED files. These are easier to read (for humans) but result in a much slower simulation if used for running biased MD.
+- The flag `-y` run the script without asking any confirmation to the user.
 - The flag `-s` sets the stride for the analysis of the trajectories (defaul: 10). We recommend to include at least 1000 frames to obtain good statistics.
 
 ## Basic usage of oneopes_files_generation.py
