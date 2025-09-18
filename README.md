@@ -71,25 +71,22 @@ The script for OneOPES files generation `oneopes_files_generation.py` requires a
 ```
 python oneopes_files_generation.py --h
 ```
-This script is supposed to be used after running the features generation script `bioinspired_features.py`, as it depends on a few output files of this script, namely `plumed_final_noduplicate.dat`, generated where the feature generation script is run, and `COLVAR_diff` and `COLVAR_solvation` for both the folded and unfolded trajectory, generated inside the corresponding directories of the trajectories. It is suggested to use these scripts in the same directory.
+This script is supposed to be used after running the features generation script `bioinspired_features.py`, as it depends on a few output files of this script, namely `plumed_final_noduplicate.dat`, generated where the feature generation script is run, `ref_proteinCA_biofeat.pdb`, which is a pdb containing the alpha carbons of the protein analysed with the script previously (or a subselection of it if the `-w` flag was used), and `COLVAR_diff` and `COLVAR_solvation` for both the folded and unfolded trajectory, generated inside the corresponding directories of the trajectories. It is suggested to use these scripts in the same directory.
 
 The mandatory flags are the following
-- the directory containing the file plumed_final_noduplicate.dat (`-s`)
+- the directory containing the `plumed_final_noduplicate.dat` and `ref_proteinCA_biofeat.pdb` files (`-s`)
 - the directory containing COLVAR_diff and COLVAR_solvation for the folded trajectory (`-f`)
 - the directory containing COLVAR_diff and COLVAR_solvation for the unfolded trajectory (`-u`)
 - the seven minimum (`-minTs`) and maximum (`-maxTs`) temperatures for the replica exchange for replicas 1 to 7
 - the PACE for the two main CVs, in units of simulation steps (`-p`)
 - the BARRIER for the two main CVs in kJ/mol (`-b`)
-- pdb file of the folded protein (`-rp`)
-- pdb file of the alpha carbons of the protein (`-rca`)
 
 Further information about the OPES-specific PLUMED flags can be found on the corresponding [PLUMED manual page](https://www.plumed.org/doc-v2.9/user-doc/html/_o_p_e_s__m_e_t_a_d__e_x_p_l_o_r_e.html) and in-depth interpretations are reported in the corresponding publications.[^2][^3][^4]
 
 The output files are organised in the following tree
 ```
 oneopes_files
-│   folded_protein.pdb
-│   folded_protein_CA.pdb
+│   ref_proteinCA_biofeat.pdb
 |
 └───rep0
 │   │   plumed.dat
