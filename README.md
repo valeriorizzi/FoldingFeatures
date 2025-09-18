@@ -60,7 +60,7 @@ With respect to this organization, the basic command to run the script would loo
 ```
 python bioinspired_features_generation.py -F ./folded_trajectory/folded.xtc -U ./unfolded_trajectory/unfolded.xtc -r full_solvated_box.pdb -rp folded_protein.pdb -rca folded_protein_CA.pdb -mc mcfile
 ```
-An example of files and directory organization is provided in [example_TRP](https://github.com/heritiem/bioinspired_features/tree/main/example_TRP) for tryptophan-cage, which is the same as the one used in the publication. At the end of the analysis, the script sumarizes the main run details and the features in the `bioinspired_features.log` file. 
+An example of files and directory organization is provided in [example_TRP](https://github.com/valeriorizzi/FoldingFeatures/tree/subselection_feature/example_TRP) for tryptophan-cage, which is the same as the one used in the publication. At the end of the analysis, the script sumarizes the main run details and the features in the `bioinspired_features.log` file. 
 
 ### Optional flags
 The `bioinspired_features_generation.py` script has a number of optional flags, namely
