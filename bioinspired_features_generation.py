@@ -11,9 +11,31 @@ import subprocess
 import logging
 import datetime
 
-version = 1.0
+version = 2.0
 error = '--- ERROR: %s \n'
 logging.basicConfig(filename='bioinspired_features.log', filemode='a', format='%(levelname)s:%(message)s', level=logging.INFO)
+
+_p = "\033[38;5;196m+\033[0m"
+_m = "\033[38;5;88m-\033[0m"
+_h = "\033[38;5;203m#\033[0m"
+
+logo = "\n"
+logo += r"______ _       _                 _              _       " + f"           {_p}{_h}{_p}{_m}{_m}{_m}{_p}{_h}                             " + "\n"
+logo += r"| ___ (_)     (_)               (_)            | |      " + f"           {_p} {_m}{_m}{_m} {_p}                              " + "\n"
+logo += r"| |_/ /_  ___  _ _ __  ___ _ __  _ _ __ ___  __| |      " + f"           {_p} {_p}{_p}                                 " + "\n"
+logo += r"| ___ \ |/ _ \| | '_ \/ __| '_ \| | '__/ _ \/ _` |      " + f"         {_p}{_p}  {_p}{_p}       {_p}{_p}                        " + "\n"
+logo += r"| |_/ / | (_) | | | | \__ \ |_) | | | |  __/ (_| |      " + f"       {_m}{_p}     {_h}{_h}{_p}  {_m}{_p}   {_h}                       " + "\n"
+logo += r"\____/|_|\___/|_|_| |_|___/ .__/|_|_|  \___|\__,_|      " + f"       {_p}               {_p}{_m}{_m}{_m}{_p}                    " + "\n"
+logo += r"                          | |                           " + f"        {_p}               {_p}{_m}{_m}{_m}                    " + "\n"
+logo += r"                          |_|                           " + f"        {_p}{_p}         {_m}{_m}{_m}{_m}{_m}{_p}{_p}{_p}{_h}                    " + "\n"
+logo += r"______         _                                        " + f"         {_p}        {_h}{_p}{_p}{_p}{_p}{_p}{_p}{_h}                      " + "\n"
+logo += r"|  ___|       | |                                       " + f"         {_p}          {_p}{_p}{_p}{_m}{_m}                       " + "\n"
+logo += r"| |_ ___  __ _| |_ _   _ _ __ ___  ___                  " + f"        {_p}             {_p}{_m}{_m}{_p}                      " + "\n"
+logo += r"|  _/ _ \/ _` | __| | | | '__/ _ \/ __|                 " + f"      {_p}{_p}        {_m}{_m}{_m}{_m}{_m}{_p}{_p}{_p}{_h}                       " + "\n"
+logo += r"| ||  __/ (_| | |_| |_| | | |  __/\__ \                 " + f"   {_m}{_p}           {_h}{_p}{_p}{_p}{_p}{_p}{_h}{_h}                        " + "\n"
+logo += r"\_| \___|\__,_|\__|\__,_|_|  \___||___/                 " + f"                {_h}{_p}{_m}{_m}{_m}{_p}                          " + "\n"
+logo += r"                                                        " + f"                  {_p}{_m}{_m}{_m}{_p}                         " + "\n"
+logo += r"                                                        " + f"                      {_p}{_p}                        " + "\n"
 
 # nomenclatures for hbond donors and acceptors
 # tested agains desamber, amber99SB-ildn, charmm27, GROMOS, OPLS
@@ -109,15 +131,13 @@ parser = argparse.ArgumentParser(
 )
 
 # compulsory
-parser.add_argument("-F", "--folded", required=True, type=os.path.abspath, help="unbiased folded trajectory (xtc file)")
-parser.add_argument("-U", "--unfolded", required=True, type=os.path.abspath, help="unbiased unfolded trajectory (xtc file)")
-parser.add_argument("-r", "--reference_pdb_solvated", required=True, type=os.path.abspath, help="reference PDB file of the solvated system")
-parser.add_argument("-rp", "--reference_protein", required=True, type=os.path.abspath, help="reference PDB file for the protein only")
-parser.add_argument("-rca", "--reference_CA", required=True, type=os.path.abspath, help="reference PDB file for the CA atoms only")
+parser.add_argument("-f", "--folded", required=True, type=os.path.abspath, help="unbiased folded trajectory (xtc file)")
+parser.add_argument("-u", "--unfolded", required=True, type=os.path.abspath, help="unbiased unfolded trajectory (xtc file)")
+parser.add_argument("-r", "--reference_protein", required=True, type=os.path.abspath, help="reference PDB file for the full system")
 parser.add_argument("-mc", "--mcfile", required=True, type=os.path.abspath, help="PLUMED mcfile")
 
 # other options
-parser.add_argument("-w", "--where", required=False, default="protein", type=str, help="Selection in mdtraj lingo. Default is 'protein'")
+parser.add_argument("-w", "--where", required=False, default="protein", type=str, help="Selection in mdtraj lingo. Default is 'protein'. If you need a specific part of the protein you can use e.g. 'protein and (residue 6 to 25 or residue 80 to 95)'")
 parser.add_argument("-l", "--lda", required=False, default=0.3, type=float, help="lda value to use for the filtering. Default: 0.3")
 parser.add_argument("-c", "--cutoff", required=False, default=0.6, type=float, help="cutoff value to use for the filtering. Default: 0.6nm")
 parser.add_argument("-s", "--stride", required=False, default=10, type=int, help="STRIDE for the PLUMED file in the filtering steps. Default: 10")
@@ -137,9 +157,7 @@ args_path_unfolded = args.unfolded
 args_unfolded_dir = os.path.dirname(args_path_unfolded)
 args_unfolded_trajectory = os.path.basename(args_path_unfolded)
 # references
-args_reference = args.reference_pdb_solvated
 args_reference_protein = args.reference_protein
-args_reference_ca = args.reference_CA
 args_mcfile = args.mcfile
 # additional parameters
 args_where = args.where
@@ -154,11 +172,11 @@ args_yes = args.yes
 # Should we check also the mcfile?
 if (args_folded_trajectory[-3:] != "xtc" or args_unfolded_trajectory[-3:] != "xtc"):
     sys.exit(error%('Trajectories must be an xtc file.'))
-if (args_reference[-3:] != "pdb" or args_reference_protein[-3:] != "pdb" or args_reference_ca[-3:] != "pdb"):
+if args_reference_protein[-3:] != "pdb":
     sys.exit(error%('Reference structures must be a pdb file.'))
 # Check files availability
 missing_files = []
-for infile in [args_reference_protein, args_reference, args_reference_ca, args_mcfile, args_path_folded, args_path_unfolded]:
+for infile in [args_reference_protein, args_mcfile, args_path_folded, args_path_unfolded]:
     if not os.path.isfile(infile):
         missing_files.append(infile)
 if len(missing_files) > 0:
@@ -168,25 +186,29 @@ try:
     subprocess.run(["plumed", "--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
 except:
     sys.exit(error%('PLUMED is not installed or has not been sourced properly.'))
-    
-    
+
 # load reference PDB file (only protein)
 full_topology = mdtraj.load(args_reference_protein, top=args_reference_protein).topology
 topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select(args_where)).topology
 number_residues = [res.resSeq for res in topology.residues]
 table, bonds = topology.to_dataframe()
-    
 
-# load reference PDB file
-topology_solv = mdtraj.load(args_reference).topology
-ref_solv, bonds_solv = topology_solv.to_dataframe()
+# Save the protein locally as pdb file to help for analysis
+outname_protein_ref = 'ref_protein_biofeat.pdb'
+ref_prot_topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select("protein"))
+ref_prot_topology[0].save(outname_protein_ref)
+
+# Save the CAs of selection of protein locally as pdb file to help for analysis
+outname_protein_CA_ref = 'ref_proteinCA_biofeat.pdb'
+ref_prot_CA_topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select("name CA and (" + args_where + ")"))
+ref_prot_CA_topology[0].save(outname_protein_CA_ref)
 
 # checks the type of water (# atoms in the model)
-# safer to check the number of atoms rather than the names as we pick up also broken pdbs
-n_atoms_water = len(topology_solv.select("water"))
-n_res_waters = 0
-for residue in topology_solv.residues:
-    if residue.is_water: n_res_waters += 1
+topology_solv = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select("water")).topology
+ref_solv, bonds_solv = topology_solv.to_dataframe()
+
+n_atoms_water = len(full_topology.select("water"))
+n_res_waters = topology_solv.n_residues
 water_model = n_atoms_water/n_res_waters
 
 # checks that the number is divisible by three or four, not perfect but relatively robust
@@ -197,12 +219,15 @@ elif (water_model % 1 == 0):
 else:
     sys.exit(error%('Non-integer number of water atoms detected (' + str(water_model) + ' atoms per residue). Check the reference file: ' + args_reference))
 
+first_oxygen = list(ref_solv[(ref_solv['resName'] == 'HOH') & (ref_solv['name'] == 'O')].head(1)['serial'])[0]
+last_oxygen = first_oxygen + water_model * (n_res_waters - 1)
+
 # check if pymol works if the saving of a pymol session is requested
 if args_pymol:
     try:
         import pymol
     except ImportError:
-        print("WARNING: Module pymol not found. Is it installed?")
+        print("\nWARNING: Module pymol not found. Is it installed?")
         print("WARNING: Will not print the pymol session...")
         args_pymol = False
     except:
@@ -212,21 +237,18 @@ if args_pymol:
     else:
         from pymol import cmd
 
-# store first and last water oxygen atoms
-first_oxygen = list(ref_solv[(ref_solv['resName'] == 'HOH') & (ref_solv['name'] == 'O')].head(1)['serial'])[0]
-last_oxygen = list(ref_solv[(ref_solv['resName'] == 'HOH') & (ref_solv['name'] == 'O')].tail(1)['serial'])[0]
-
 # some on screen info
+print("\n")
+print(logo)
 print("\n")
 print("################################################################################################################")
 print("Working directory           : " + str(inp_dir))
-print("Reference file (solvated)   : " + str(args_reference))
-print("Reference file (protein)    : " + str(args_reference_protein))
-print("Reference file (protein CA) : " + str(args_reference_ca))
+print("Reference box               : " + str(args_reference_protein))
 print("Folded trajectory file      : " + str(args_path_folded))
 print("Unfolded trajectory file    : " + str(args_path_unfolded))
 print("Reference mcfile            : " + str(args_mcfile))
 print("Water model detected        : " + str(water_model) + "-points water model.")
+print("Selection for feature ext.  : " + str(args_where))
 print("Stride                      : " + str(int(args_stride)))
 print("LDA cutoff value            : " + str(args_lda))
 print("Cutoff value for the H-bonds: " + str(args_cutoff))
@@ -255,7 +277,7 @@ logging.info(' The Journal of Physical Chemistry Letters, 16, 9636-9645, (2025)'
 logging.info(' Rizzi, V., Héritier, M., Piasentin, N., Aureli, S., & Gervasio, F. L.')
 logging.info(' doi: 10.1021/acs.jpclett.5c02079')
 logging.info(' Command Line:')
-logging.info(' python bioinspired_features_generation.py -F '+ str(args_path_folded) + ' -U ' + str(args_path_unfolded) + ' -r ' + str(args_reference) + ' -rp ' + str(args_reference_protein) + ' -rca ' + str(args_reference_ca) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
+logging.info(' python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
 logging.info(' Started on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 logging.info('\n')
 
@@ -277,8 +299,8 @@ for atom in hbond_acceptor:
 # write a PLUMED script to get the distances of all possible H-bonds in the structure
 print("Writing plumed_1.dat file ...")
 output= open('plumed_1.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
+#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
+#output.write('\n')
 output.write('# all distances between possible H-bonds')
 output.write('\n')
 
@@ -301,10 +323,10 @@ output.close()
 
 print("Running plumed_1.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --ixtc {args_folded_trajectory} 1> plumed_1_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --ixtc {args_folded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_1_folded.out")
 print("Running plumed_1.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --ixtc {args_unfolded_trajectory} 1> plumed_1_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_1_unfolded.out")
 os.chdir(inp_dir)
 
 print("Reading COLVAR file for the first filter ...")
@@ -322,8 +344,8 @@ df = df.sort_values(by=['labels'], ascending=True).reset_index()
 # writes PLUMED script to obtain the angle information from the relevant H-bonds in df
 print("Writing plumed_2.dat file to obtain angle information ...")
 output = open('plumed_2.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
+#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
+#output.write('\n')
 output.write('\n')
 
 for i in range(0,len(df)):
@@ -477,10 +499,10 @@ outfile.close()
 
 print("Running plumed_2.dat file on folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --ixtc {args_folded_trajectory} 1> plumed_2_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --ixtc {args_folded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_2_folded.out")
 print("Running plumed_2.dat file on unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --ixtc {args_unfolded_trajectory} 1> plumed_2_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_2_unfolded.out")
 os.chdir(inp_dir)
 
 print("Reading COLVAR files ...")
@@ -563,8 +585,8 @@ all_acceptors = table[(table['element'] == "O") | (table['element'] == "N")].res
 
 print("Writing plumed_3.dat ...")
 output = open('plumed_3.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
+#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
+#output.write('\n')
 
 for i in range(0,len(df_hard_soft)):
     labels = df_hard_soft['labels'][i]
@@ -676,10 +698,10 @@ output.close()
 #print("Running plumed_3.dat on folded trajectory ...")
 os.chdir(args_folded_dir)
 print("Running plumed_3.dat on folded trajectory ...")
-os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_folded_trajectory}  1> plumed_3_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_folded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_3_folded.out")
 print("Running plumed_3.dat on unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_unfolded_trajectory}  1> plumed_3_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_3_unfolded.out")
 os.chdir(inp_dir)
 
 # read the COLVAR files for the virtual contacts
@@ -694,8 +716,8 @@ df_virtual = df_virtual[df_virtual['meanF'] > 0.4].dropna()
 # writes a PLUMED file for the side-chain contacts
 print("Writing plumed_SC.dat for the side-chain contacts ...")
 output = open('plumed_SC.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
+#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
+#output.write('\n')
 output.write('\n')
 
 # take only the residues numbers in the selection for the side chain checks
@@ -705,14 +727,14 @@ output.write('\n')
 
 # to calculate the geometric center of the side chains (SC)
 for res in number_residues:
-    p = full_topology.select("residue " + str(res) + " and not backbone and not (type H)")
+    p = full_topology.select("protein and residue " + str(res) + " and not backbone and not (type H)") + 1
     p = p.tolist()
     if len(p) !=0:
         s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
     else:
-        p = full_topology.select("residue " + str(res) + " and backbone and name CA")
+        p = full_topology.select("protein and residue " + str(res) + " and backbone and name CA") + 1
         s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
@@ -751,10 +773,10 @@ output.close()
 
 print("Running plumed_SC.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} 1> plumed_SC_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_SC_folded.out")
 print("Running plumed_SC.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} 1> plumed_SC_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_SC_unfolded.out")
 os.chdir(inp_dir)
 
 # read the COLVAR files for the side chain contacts
@@ -775,8 +797,8 @@ dffiltered = pd.concat([dffilteredFmU, dffilteredUmF])
 
 print("Writing plumed_solvation.dat for the solvation features ...")
 output = open('plumed_solvation.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
+#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
+#output.write('\n')
 output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model))
 output.write('\n')
 output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model))
@@ -800,10 +822,10 @@ output.close()
 
 print("Running plumed_solvation.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --ixtc {args_folded_trajectory} 1> plumed_solvation_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --ixtc {args_folded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_solvation_folded.out")
 print("Running plumed_solvation.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --ixtc {args_unfolded_trajectory} 1> plumed_solvation_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_solvation_unfolded.out")
 os.chdir(inp_dir)
 
 os.system(f'sed -i "s/#NLIST/NLIST/g" {inp_dir}/plumed_solvation.dat') ##DEBUG
@@ -825,18 +847,18 @@ print("Writing the final plumed file ...")
 output = open('plumed_final.dat', 'w')
 output.write('# This PLUMED file has been generated by bioinspired_features_generation.py on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 output.write('\n')
-output.write('# Command : python bioinspired_features_generation_v.1.py -F '+ str(args_path_folded) + ' -U ' + str(args_path_unfolded) + ' -r ' + str(args_reference) + ' -rp ' + str(args_reference_protein) + ' -rca ' + str(args_reference_ca) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
+output.write('# Command : python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
 output.write('\n')
 output.write('\n')
 output.write("#RESTART")
 output.write('\n')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
+#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
+#output.write('\n')
 output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model))
 output.write('\n')
 output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model))
 output.write('\n')
-output.write(f'rmsd_ca: RMSD REFERENCE={args_reference_ca} TYPE=OPTIMAL') ##TO DEBUG
+output.write(f'rmsd_ca: RMSD REFERENCE={inp_dir}/{outname_protein_CA_ref} TYPE=OPTIMAL') ##TO DEBUG
 output.write('\n')
 output.write('\n')
 
@@ -1294,14 +1316,14 @@ output.write('\n')
 
 # to calculate the center of mass of the side chains (SC)
 for res in number_residues:
-    p = full_topology.select("residue " + str(res) + " and not backbone and not (type H)")
+    p = full_topology.select("protein and residue " + str(res) + " and not backbone and not (type H)") + 1
     p = p.tolist()
     if len(p) !=0:
         s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
     else:
-        p = full_topology.select("residue " + str(res) + " and backbone and name CA")
+        p = full_topology.select("protein and residue " + str(res) + " and backbone and name CA") + 1
         s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
@@ -1500,10 +1522,10 @@ outfile.close()
 print("Running the final plumed file on the folded trajectory ...")
 os.chdir(args_folded_dir)
 os.system(f'sed -i "s/NLIST/#NLIST/g" {inp_dir}/plumed_final_noduplicate.dat') ##DEBUG
-os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} 1> plumed_final_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_final_folded.out")
 print("Running the final plumed file on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} 1> plumed_final_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_final_unfolded.out")
 os.chdir(inp_dir)
 os.system(f'sed -i "s/#NLIST/NLIST/g" {inp_dir}/plumed_final_noduplicate.dat') ##DEBUG
 
@@ -1511,7 +1533,6 @@ print("Reading the final COLVAR file ...")
 df_final = read_colvar('COLVAR_diff', '')
 
 nb_frames = len(pd.read_csv(args_folded_dir+'/COLVAR_diff', sep=r'\s+',skiprows=1, header=None)-1)
-
 
 # Writing final results to log file
 logging.info(' With a stride of ' + str(int(args_stride)) + ', the number of frames used for the filtering was ' + str(nb_frames))
@@ -1530,6 +1551,16 @@ for label, meanF, meanU in zip(df_final['labels'], df_final['meanF'], df_final['
 logging.info(' Finished on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 logging.info('\n')
 
+print("\n")
+print("Analysis finished.")
+print(' Number of hard H-bonds significant in folded state: '+ str(len(df_hard_sigF)))
+print(' Number of hard H-bonds significant in unfolded state: '+ str(len(df_hard_sigU)))
+print(' Number of soft H-bonds significant in folded state: '+ str(len(df_soft_sigF)))
+print(' Number of soft H-bonds significant in unfolded state: '+ str(len(df_soft_sigU)))
+print(' Number of side chain contacts significant in folded state: '+ str(len(dffilteredFmU)))
+print(' Number of side chain contacts significant in unfolded state: '+ str(len(dffilteredUmF)))
+print("\n")
+
 # output pymol session if requested
 if args_pymol:
     # load the protein and show it as licorice
@@ -1539,6 +1570,7 @@ if args_pymol:
     for i in range(1, len(number_residues)): licorice_res += "," + str(number_residues[i])
     cmd.show("licorice", licorice_res) # show only subsection in licorice
     cmd.hide("(all and hydro and (elem C extend 1))") # hide non-polar hydrogens
+    cmd.hide("(solvent and (All))") # hide waters
 
     # loop on Hard-Folded, Hard-Unfolded, Soft-Folded, Soft-Unfolded hbonds
     for index, row in df_hard_soft.iterrows():
@@ -1551,7 +1583,7 @@ if args_pymol:
         state = "Folded" if row ['Significant folded'] else "Unfolded"
         dist_name = f"hbond_{strength}_{state}_{atom_a}_{atom_b}" + "_lda_{0:.2f}".format(row['lda'])
         # draw the distance, hide the label (confusing), and color accordingly
-        cmd.distance(dist_name, f"id {atom_a}", f"id {atom_b}")
+        cmd.distance(dist_name, f"id {atom_a} and not solvent", f"id {atom_b} and not solvent")
         cmd.hide("labels", dist_name)
         cmd.color("red" if row['Hard'] else "yelloworange", dist_name)
  
