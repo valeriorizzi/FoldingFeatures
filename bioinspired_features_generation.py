@@ -168,6 +168,14 @@ try:
     subprocess.run(["plumed", "--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
 except:
     sys.exit(error%('PLUMED is not installed or has not been sourced properly.'))
+    
+    
+# load reference PDB file (only protein)
+full_topology = mdtraj.load(args_reference_protein, top=args_reference_protein).topology
+topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select(args_where)).topology
+number_residues = [res.resSeq for res in topology.residues]
+table, bonds = topology.to_dataframe()
+    
 
 # load reference PDB file
 topology_solv = mdtraj.load(args_reference).topology
@@ -250,11 +258,6 @@ logging.info(' Command Line:')
 logging.info(' python bioinspired_features_generation.py -F '+ str(args_path_folded) + ' -U ' + str(args_path_unfolded) + ' -r ' + str(args_reference) + ' -rp ' + str(args_reference_protein) + ' -rca ' + str(args_reference_ca) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
 logging.info(' Started on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 logging.info('\n')
-
-# load reference PDB file, just the selection requested
-full_topology = mdtraj.load(args_reference_protein, top=args_reference_protein).topology
-topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select(args_where)).topology
-table, bonds = topology.to_dataframe()
 
 # generate a list of dataframes of all the hydrogens that could participate in H-bonds in args_reference_protein
 list_hbond_donors = []
@@ -520,6 +523,26 @@ df_soft_sigF = df_soft[df_soft['Significant folded']== True]
 df_soft_sigF = df_soft_sigF.sort_values(by=['lda'],ascending=False).reset_index(drop=True)
 df_soft_sigU = df_soft[df_soft['Significant unfolded']== True]
 df_soft_sigU = df_soft_sigU.sort_values(by=['lda'],ascending=False).reset_index(drop=True)
+
+# sometimes more than 1 H is picked up from aa like K, giving too much weight to that component of the CV. We need to clean them up
+# they should naturally be consecutive
+### HERE
+#previous_soft_hbond = [-1,-1]
+#for index, row in df_soft_sigF.iterrows():
+#    # get atoms
+#    print(index, row)
+#    label_name = row['labels'].split("_")
+#    atom_a = label_name[2].split("-")[0]
+#    atom_b = label_name[3]
+#    res_a = full_topology.atom(int(atom_a)).residue.resSeq
+#    res_b = full_topology.atom(int(atom_b)).residue.resSeq
+#    if [res_a, res_b] == previous_soft_hbond:
+#        print("{res_a} and {res_b} have common soft hbonds")
+#    else:
+#        previous_soft_hbond = [res_a, res_b]
+#    print(atom_a,atom_b)
+#    print(res_a,res_b)
+
 df_soft_sigF_sigU = pd.concat([df_soft_sigF,df_soft_sigU]).reset_index(drop=True)
 
 # concatenating a dataframe with all the hard and soft H-bonds
@@ -650,8 +673,9 @@ output.write('PRINT STRIDE='+str(args_stride)+ ' ARG=* FILE=COLVAR_third_filter'
 output.write('\n')
 output.close()
 
-print("Running plumed_3.dat on folded trajectory ...")
+#print("Running plumed_3.dat on folded trajectory ...")
 os.chdir(args_folded_dir)
+print("Running plumed_3.dat on folded trajectory ...")
 os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_folded_trajectory}  1> plumed_3_folded.out")
 print("Running plumed_3.dat on unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
@@ -662,8 +686,7 @@ os.chdir(inp_dir)
 df_virtual = read_colvar('COLVAR_third_filter','virtual_')
 df_virtual = df_virtual.sort_values(by=['meanF'],ascending=True)
 # here we are keeping only the contacts that are more than 4 A away from the H-bond in the folded state
-df_virtual = df_virtual[df_virtual['meanF'] > 0.4].dropna() 
-# df_virtual.sort_values(by=['meanF'],ascending=True)
+df_virtual = df_virtual[df_virtual['meanF'] > 0.4].dropna()
 
 #############################################################################
 # Adding the side chains
@@ -675,43 +698,51 @@ output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
 output.write('\n')
 output.write('\n')
 
-# to save the amount of residues forming the protein
-target = mdtraj.load(args_reference_protein)
-numres=target.topology.select("name CA").shape
+# take only the residues numbers in the selection for the side chain checks
+#full_target = mdtraj.load(args_reference_protein, top=args_reference_protein).topology
+#target = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_target.select(args_where))
+#number_residues = [res.resSeq for res in target.topology.residues]
 
 # to calculate the geometric center of the side chains (SC)
-resID_nogly=[]
-for i in range(0,numres[0]):
-    p=target.topology.select("resid "+str(i)+" and not backbone and not (type H)")+1
+for res in number_residues:
+    p = full_topology.select("residue " + str(res) + " and not backbone and not (type H)")
     p = p.tolist()
     if len(p) !=0:
-        s="SC"+str(i+1)+": CENTER ATOMS="+str(p)+"MASS"
+        s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
     else:
-        p=target.topology.select("resid "+str(i)+" and backbone and name CA")+1
-        s="SC"+str(i+1)+": CENTER ATOMS="+str(p)+"MASS"
+        p = full_topology.select("residue " + str(res) + " and backbone and name CA")
+        s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
 output.write('\n')
 
 # CV of the distances between the SCs (adjacent SC are not taken into account)
-# the list resID_nogly is needed to take into account the removal of GLYs
-for i in range(1,numres[0]+1):
-    for j in range(i+2,numres[0]+1):
-        label = "contside"+str(i)+"-"+str(j)+": "
-        output.write(str(label)+"COORDINATION GROUPA=SC"+str(i)+" GROUPB=SC"+str(j)+"  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
-        output.write('\n')
-output.write('\n')
+if len(number_residues) > 2:
+    for i in range(0, len(number_residues)):
+        res = number_residues[i]
+        for j in range(i+1, len(number_residues)):
+            exclude_res = number_residues[j]
+            # don't consider neighbouring aa
+            if res + 1 == exclude_res: continue
+            label = "contside" + str(res) + "-" + str(exclude_res) + ": "
+            output.write(str(label)+"COORDINATION GROUPA=SC" + str(res) + " GROUPB=SC" + str(exclude_res) + "  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
+            output.write('\n')
+    output.write('\n')
 
 # calculate the distance between the two center of masse of residues pairs
-for i in range(1,numres[0]+1):
-    for j in range(i+2,numres[0]+1):
-        label = "SC"+str(i)+"-"+str(j)+": "
-        output.write(str(label)+"CENTER ATOMS=SC"+str(i)+",SC"+str(j))
-        output.write('\n')
-output.write('\n')
-
+if len(number_residues) > 2:
+    for i in range(0, len(number_residues)):
+        res = number_residues[i]
+        for j in range(i+1, len(number_residues)):
+            exclude_res = number_residues[j]
+            # don't consider neighbouring aa
+            if res + 1 == exclude_res: continue
+            label = "SC" + str(res) + "-" + str(exclude_res) + ": "
+            output.write(str(label) + "CENTER ATOMS=SC" + str(res) + ",SC" + str(exclude_res))
+            output.write('\n')
+    output.write('\n')
 
 output.write('PRINT STRIDE='+str(args_stride)+ ' ARG=* FILE=COLVAR_SC')
 output.write('\n')
@@ -732,13 +763,9 @@ df_sc = read_colvar('COLVAR_SC', 'contside')
 dffilteredFmU = df_sc[df_sc['FminusU'] > 0.0].dropna()
 dffilteredFmU = dffilteredFmU[dffilteredFmU['meanF'] > args_cutoff].dropna()
 dffilteredFmU = dffilteredFmU[dffilteredFmU['lda'] > args_lda].dropna()
-#dffilteredFmU.sort_values(by=['lda'],ascending=False)
-
 dffilteredUmF = df_sc[df_sc['FminusU'] < 0.0].dropna()
 dffilteredUmF = dffilteredUmF[dffilteredUmF['meanU'] > args_cutoff].dropna()
 dffilteredUmF = dffilteredUmF[dffilteredUmF['lda'] > args_lda].dropna()
-#dffilteredUmF.sort_values(by=['lda'],ascending=False)
-
 dffiltered = pd.concat([dffilteredFmU, dffilteredUmF])
 
 ##################################################################################
@@ -1265,46 +1292,48 @@ output.write('\n')
 output.write("# Now for the side chains ")
 output.write('\n') 
 
-target = mdtraj.load(args_reference_protein)
-
-#to save the amount of residues forming the protein
-numres=target.topology.select("name CA").shape
-
-# to calculate the geometric center of the side chains (SC)
-resID_nogly=[]
-for i in range(0,numres[0]):
-    p=target.topology.select("resid "+str(i)+" and not backbone and not (type H)")+1
+# to calculate the center of mass of the side chains (SC)
+for res in number_residues:
+    p = full_topology.select("residue " + str(res) + " and not backbone and not (type H)")
     p = p.tolist()
     if len(p) !=0:
-        s="SC"+str(i+1)+": CENTER ATOMS="+str(p)+"MASS"
+        s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
     else:
-        p=target.topology.select("resid "+str(i)+" and backbone and name CA")+1
-        s="SC"+str(i+1)+": CENTER ATOMS="+str(p)+"MASS"
+        p = full_topology.select("residue " + str(res) + " and backbone and name CA")
+        s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
 output.write('\n')
 
 #CV of the distances between the SCs (adjacent SC are not taken into account)
-#the list resID_nogly is needed to take into account the removal of GLYs
-
 if args_explicit: 
-    for i in range(1,int(numres[0])+1):
-        for j in range(i+2,int(numres[0])+1):
-            label = "contside"+str(i)+"-"+str(j)+": "
-            output.write(str(label)+"COORDINATION GROUPA=SC"+str(i)+" GROUPB=SC"+str(j)+"  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
+    if len(number_residues) > 2:
+        for i in range(0,len(number_residues)):
+            res = number_residues[i]
+            for j in range(i+1,len(number_residues)):
+                exclude_res = number_residues[j]
+                # don't consider neighbouring aa
+                if res + 1 == exclude_res: continue
+                label = "contside" + str(res) + "-" + str(exclude_res) + ": "
+                output.write(str(label)+"COORDINATION GROUPA=SC" + str(res) + " GROUPB=SC" + str(exclude_res) + "  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
+                output.write('\n')
+        output.write('\n')
+
+# calculate the distance between the two center of masse of residues pairs
+#calculate the point where to evaluate water
+if len(number_residues) > 2:
+    for i in range(0,len(number_residues)):
+        res = number_residues[i]
+        for j in range(i+1,len(number_residues)):
+            exclude_res = number_residues[j]
+            # don't consider neighbouring aa
+            if res + 1 == exclude_res: continue
+            label = "SC" + str(res) + "-" + str(exclude_res) + ": "
+            output.write(str(label) + "CENTER ATOMS=SC" + str(res) + ",SC" + str(exclude_res))
             output.write('\n')
     output.write('\n')
-
-#calculate the point where to evaluate water
-#SC2-19: CENTER ATOMS=SC2,SC19
-for i in range(1,int(numres[0])+1):
-    for j in range(i+2,int(numres[0])+1):
-        label = "SC"+str(i)+"-"+str(j)+": "
-        output.write(str(label)+"CENTER ATOMS=SC"+str(i)+",SC"+str(j))
-        output.write('\n')
-output.write('\n')
 
 list_diff = []
 
@@ -1316,33 +1345,34 @@ if dffilteredFmU.empty == False:
     exclusion_listF =""
 
     listsc +="contsideF,exSCF"
-    
-    for i in range(0,len(dffilteredFmU)):
-            desc=str(dffilteredFmU['labels'].iloc[i])
-            exclabel=desc.replace("contside", "exc_SC" )
-            difflabel=desc.replace("contside", "diff_SC" )
-            exclusion_listF+= str(exclabel)+","
-            excgroupa=desc.replace("contside", "SC" )
-            excindeces=desc.replace("contside", "" )
-            ind1 = int(excindeces.split("-")[0])
-            ind2 = int(excindeces.split("-")[1])
-    
-            contsideaF+="SC"+str(ind1)+","
-            contsidebF+="SC"+str(ind2)+","
-            
-            excgroupb=""
-            for j in range(1,int(numres[0])+1):
-                if (j != ind1) and (j != ind2):
-                    excgroupb+="SC"+str(j)+","
-            output.write('\n')    
-            output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
-            output.write('\n')
-
-            if args_explicit: 
-                output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=1.0,-1.0 PERIODIC=NO")
-                list_diff.append(difflabel)
-                output.write('\n')
         
+    for i in range(0,len(dffilteredFmU)):
+        desc=str(dffilteredFmU['labels'].iloc[i])
+        exclabel=desc.replace("contside", "exc_SC" )
+        difflabel=desc.replace("contside", "diff_SC" )
+        exclusion_listF+= str(exclabel)+","
+        excgroupa=desc.replace("contside", "SC" )
+        excindeces=desc.replace("contside", "" )
+        ind1 = int(excindeces.split("-")[0])
+        ind2 = int(excindeces.split("-")[1])
+        
+        contsideaF+="SC"+str(ind1)+","
+        contsidebF+="SC"+str(ind2)+","
+                
+        excgroupb=""
+
+        for j in number_residues:
+            if (j != ind1) and (j != ind2):
+                excgroupb+="SC"+str(j)+","
+        output.write('\n')    
+        output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
+        output.write('\n')
+
+        if args_explicit: 
+            output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=1.0,-1.0 PERIODIC=NO")
+            list_diff.append(difflabel)
+            output.write('\n')
+            
     output.write('\n')
     output.write("contsideF: COORDINATION GROUPA="+contsideaF+" GROUPB="+contsidebF+" SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8} PAIR") 
     output.write('\n')
@@ -1361,30 +1391,31 @@ if dffilteredUmF.empty == False:
         listsc +="contsideU,exSCU"
     
     for i in range(0,len(dffilteredUmF)):
-            desc=str(dffilteredUmF['labels'].iloc[i])
-            exclabel=desc.replace("contside", "exc_SC" )
-            difflabel=desc.replace("contside", "diff_SC" )
-            exclusion_listU+= str(exclabel)+","
-            excgroupa=desc.replace("contside", "SC" )
-            excindeces=desc.replace("contside", "" )
-            ind1 = int(excindeces.split("-")[0])
-            ind2 = int(excindeces.split("-")[1])
-    
-            contsideaU+="SC"+str(ind1)+","
-            contsidebU+="SC"+str(ind2)+","
-            
-            excgroupb=""
-            for j in range(1,int(numres[0])+1):
-                if (j != ind1) and (j != ind2):
-                    excgroupb+="SC"+str(j)+","
-            output.write('\n')    
-            output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
-            output.write('\n')
+        desc=str(dffilteredUmF['labels'].iloc[i])
+        exclabel=desc.replace("contside", "exc_SC" )
+        difflabel=desc.replace("contside", "diff_SC" )
+        exclusion_listU+= str(exclabel)+","
+        excgroupa=desc.replace("contside", "SC" )
+        excindeces=desc.replace("contside", "" )
+        ind1 = int(excindeces.split("-")[0])
+        ind2 = int(excindeces.split("-")[1])
+        
+        contsideaU+="SC"+str(ind1)+","
+        contsidebU+="SC"+str(ind2)+","
+                
+        excgroupb=""
 
-            if args_explicit:     
-                output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=-1.0,1.0 PERIODIC=NO")
-                output.write('\n')
-                list_diff.append(difflabel)
+        for j in number_residues:
+            if (j != ind1) and (j != ind2):
+                excgroupb+="SC"+str(j)+","
+        output.write('\n')    
+        output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
+        output.write('\n')
+
+        if args_explicit:     
+            output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=-1.0,1.0 PERIODIC=NO")
+            output.write('\n')
+            list_diff.append(difflabel)
 
 
     output.write('\n')
@@ -1392,7 +1423,6 @@ if dffilteredUmF.empty == False:
     output.write('\n')
     output.write("exSCU: COMBINE ARG="+exclusion_listU+" PERIODIC=NO") 
     output.write('\n')
-
 
 temp = listsc.split(",")
 
@@ -1425,8 +1455,8 @@ if args_explicit:
 
 ###############################################################################
 # Adding the coordination to water as auxiliary CV
-
 # add finally the carbon/oxygen/nitrogen atoms coordination to water
+# finger print paper proves that this is not necessarily the optimal choice > might need to update this with fp if Gareth implement this
 
 list_atoms = []
 
@@ -1452,7 +1482,7 @@ output.write('\n')
 if args_explicit:
     to_write = 'PRINT ARG=diffHB_compact,cmap_compact,diffHB_non_compact,cmap_non_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
 else:
-        to_write = 'PRINT ARG=diffHB_compact,cmap_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
+    to_write = 'PRINT ARG=diffHB_compact,cmap_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
 
 to_write_clean = to_write.replace("]"," ").replace("["," ").replace(", ",",").replace(" ,",",").replace("= ","=").replace("'","")
 output.write(to_write_clean)
@@ -1504,7 +1534,11 @@ logging.info('\n')
 if args_pymol:
     # load the protein and show it as licorice
     cmd.load(args_reference_protein)
-    cmd.show_as("licorice", "all")
+    cmd.show_as("cartoon", "all")
+    licorice_res = "residue " + str(number_residues[0])
+    for i in range(1, len(number_residues)): licorice_res += "," + str(number_residues[i])
+    cmd.show("licorice", licorice_res) # show only subsection in licorice
+    cmd.hide("(all and hydro and (elem C extend 1))") # hide non-polar hydrogens
 
     # loop on Hard-Folded, Hard-Unfolded, Soft-Folded, Soft-Unfolded hbonds
     for index, row in df_hard_soft.iterrows():
@@ -1574,6 +1608,3 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
-
-
-
