@@ -15,9 +15,11 @@ version = 2.0
 error = '--- ERROR: %s \n'
 logging.basicConfig(filename='bioinspired_features.log', filemode='a', format='%(levelname)s:%(message)s', level=logging.INFO)
 
-_p = "\033[38;5;196m+\033[0m"
-_m = "\033[38;5;88m-\033[0m"
-_h = "\033[38;5;203m#\033[0m"
+colours = datetime.datetime.now().strftime("%H:%M:%S:%f").split(":")
+
+_p = "\033[38;5;" + str(int((float(colours[0])*float(colours[3])) % 256)) + "m+\033[0m"
+_m = "\033[38;5;" + str(int((float(colours[1])*float(colours[3])) % 256)) + "m-\033[0m"
+_h = "\033[38;5;" + str(int((float(colours[2])*float(colours[3])) % 256)) + "m#\033[0m"
 
 logo = "\n"
 logo += r"______ _       _                 _              _       " + f"           {_p}{_h}{_p}{_m}{_m}{_m}{_p}{_h}                             " + "\n"
