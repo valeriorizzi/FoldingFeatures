@@ -1243,8 +1243,8 @@ coefficients= {
     "cont_HB_hardU": -1.0,
     "NWH_hardU": 1.0/16.0,
     "NWO_hardU": 1.0/8.0,
-    "NPA_hardU": 1.0, ##DEBUG
-    "NPD_hardU": 0.5, ##DEBUG
+    "NPA_hardU": 0.0, ##DEBUG
+    "NPD_hardU": 0.0, ##DEBUG
     
     "cont_HB_softF": 1.0,
     "NPA_softF": -1.0, ##DEBUG
@@ -1642,3 +1642,4 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
+
