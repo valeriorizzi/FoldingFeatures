@@ -90,7 +90,7 @@ hbond_donor = list(hatom_hdonor_dict)
 def read_colvar(name: str, cv_prefix: str):
     """
     Read the colvar files of the folded and unfolded directories
-    Returns a dataframe with some statistics on loaded CVs (except time)
+    Returns a dataframe with some statistics on loaded CVs
     """
     # Reads COLVAR file
     filenamesF = args_folded_dir + "/" + name
@@ -124,6 +124,79 @@ def read_colvar(name: str, cv_prefix: str):
     df = df[df['labels'].str.startswith(cv_prefix)]
     return df
 
+def process_virtual(df_virtual, dfs_sigHB, output, prefix_HD="NPA", prefix_AB="NPD"):
+    """
+    Takes as input a dataframe df_virtual and list of dataframes df_sigHB
+    Computes the NPD and NPA exclusion lists based on the acceptor/donor candidates in df_virtual and
+    the significant hard/soft folded/unfolded hbonds in the dfs_sigHB list of dataframes
+    """
+    df_VH = df_virtual[df_virtual['labels'].str.contains("virtual_HD")].reset_index()
+    df_VA = df_virtual[df_virtual['labels'].str.contains("virtual_AB")].reset_index()
+
+    HD_list = []
+    NPA = ""
+
+    for i in range(len(df_VH)):
+        
+        label = df_VH['labels'][i]
+        match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', label)
+        match_number = re.findall(r'_(\d+)', label)
+        hbond = match_atomtype[0] + "_" + str(match_number[0]) + "-" + match_atomtype[1] + "_" + str(match_number[1])
+        
+        # only keep the virtual contacts that are part of one of the significant H-bonds dfs
+        # NOTE: each label_temp should be found only in one of the dfs in dfs_sigHB
+
+        for df_sigHB in dfs_sigHB:
+            if df_sigHB['labels'].str.contains(hbond).any() == True:
+                
+                temp = df_VH[df_VH['labels'].str.contains('_' + hbond + '-')].reset_index() # BEWARE OF THE STRING, DANGEROUS FIX
+
+                serial = ""
+                for j in range(len(temp)):
+                    label = temp['labels'][j]
+                    match_number = re.findall(r'_(\d+)', label)
+                    serial += str(match_number[2]) + ","
+
+                label_VH_coordination = f"{prefix_HD}_" + hbond
+                s = (label_VH_coordination + ": COORDINATION GROUPA=" + "VH_" + hbond +
+                    " GROUPB=" + serial + " SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} "
+                    "NLIST NL_CUTOFF=0.8 NL_STRIDE=20")
+
+                if s not in HD_list:
+                    output.write(s + "\n")
+                    HD_list.append(s)
+                    NPA += label_VH_coordination + ","
+
+    output.write("\n")
+
+    AB_list = []
+    NPD = ""
+
+    for i in range(len(df_VA)):
+        label = df_VA['labels'][i]
+        match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', label)
+        match_number = re.findall(r'_(\d+)', label)
+        hbond = match_atomtype[0] + "_" + str(match_number[0]) + "-" + match_atomtype[1] + "_" + str(match_number[1])
+        
+        for df_sigHB in dfs_sigHB:
+            if df_sigHB['labels'].str.contains(hbond).any() == True:
+        
+                temp = df_VA[df_VA['labels'].str.contains('_' + hbond + '-')].reset_index() # BEWARE OF THE STRING, DANGEROUS FIX
+                serial = ""
+                for j in range(len(temp)):
+                    label = temp['labels'][j]
+                    match_number = re.findall(r'_(\d+)', label)
+                    serial += str(match_number[2]) + ","
+
+                label_VA_coordination = f"{prefix_AB}_" + hbond
+                s = (label_VA_coordination + ": COORDINATION GROUPA=" + "VA_" + hbond +
+                    " GROUPB=" + serial + " SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} "
+                    "NLIST NL_CUTOFF=0.8 NL_STRIDE=20")
+
+                if s not in AB_list:
+                    output.write(s + "\n")
+                    AB_list.append(s)
+                    NPD += label_VA_coordination + ","
 
 # Parse user inputs
 parser = argparse.ArgumentParser(
@@ -171,7 +244,6 @@ args_pymol = args.pymol
 args_yes = args.yes
 
 # Check format of input
-# Should we check also the mcfile?
 if (args_folded_trajectory[-3:] != "xtc" or args_unfolded_trajectory[-3:] != "xtc"):
     sys.exit(error%('Trajectories must be an xtc file.'))
 if args_reference_protein[-3:] != "pdb":
@@ -333,7 +405,7 @@ os.chdir(inp_dir)
 
 print("Reading COLVAR file for the first filter ...")
 df = read_colvar('COLVAR_first_filter', '')
-# drop H bonds with average length < 0.4nm
+# drop H bonds with average length > 0.4nm
 df = df.drop(df[(df['meanF'] > 0.4) & (df['meanU'] > 0.4) ].index).dropna()
 # to remove the potential contacts within the same residues that don't display any difference between folded and unfolded
 # drop H bonds with average difference between folded and unfolded < 0.01 nm
@@ -706,12 +778,6 @@ os.chdir(args_unfolded_dir)
 os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_3_unfolded.out")
 os.chdir(inp_dir)
 
-# read the COLVAR files for the virtual contacts
-df_virtual = read_colvar('COLVAR_third_filter','virtual_')
-df_virtual = df_virtual.sort_values(by=['meanF'],ascending=True)
-# here we are keeping only the contacts that are more than 4 A away from the H-bond in the folded state
-df_virtual = df_virtual[df_virtual['meanF'] > 0.4].dropna()
-
 #############################################################################
 # Adding the side chains
 
@@ -1029,70 +1095,17 @@ for i in range(0,len(df_hard_soft)):
             output.write(s_NWO)
             output.write('\n')
 
-############################################
+#####################################################################################################################
 
-# add the exclusion list based on the ghost atoms
-
-df_VH = df_virtual[df_virtual['labels'].str.contains("virtual_HD")].reset_index()
-df_VA = df_virtual[df_virtual['labels'].str.contains("virtual_AB")].reset_index()
-
-HD_list = []
-NPA = ""
-
-for i in range(0,len(df_VH)):
-    label = df_VH['labels'][i]
-    match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', label)
-    match_number = re.findall(r'_(\d+)', label)
-    label_temp = match_atomtype[0] + "_" + str(match_number[0]) + "-" + match_atomtype[1] + "_" + str(match_number[1])
-    temp = df_VH[df_VH['labels'].str.contains(label_temp)].reset_index()
-
-    serial = ""
-    for j in range(0,len(temp)):
-        label = temp['labels'][j]
-        match_number = re.findall(r'_(\d+)', label)
-        serial +=str(match_number[2])+","
-        
-    label_VH_coordination = "NPA_" + label_temp
-    s = label_VH_coordination + ": COORDINATION GROUPA=" + "VH_" +label_temp + " GROUPB=" + serial +" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
-
-    if s not in HD_list:
-       output.write(s)
-       output.write('\n')
-       HD_list.append(s)
-       NPA+=str(label_VH_coordination)+","
-    else :
-       continue
-
-output.write('\n')
-
-AB_list = []
-
-NPD = ""
-
-for i in range(0,len(df_VA)):
-    label = df_VA['labels'][i]
-    match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', label)
-    match_number = re.findall(r'_(\d+)', label)
-    label_temp = match_atomtype[0] + "_" + str(match_number[0]) + "-" + match_atomtype[1] + "_" + str(match_number[1])
-    temp = df_VA[df_VA['labels'].str.contains(label_temp)].reset_index()
-
-    serial = ""
-    for j in range(0,len(temp)):
-        label = temp['labels'][j]
-        match_number = re.findall(r'_(\d+)', label)
-        serial +=str(match_number[2])+","
-        
-    label_VA_coordination = "NPD_" + label_temp
-    
-    s = label_VA_coordination + ": COORDINATION GROUPA=" + "VA_" + label_temp + " GROUPB=" + serial +" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
-
-    if s not in AB_list:
-        output.write(s)
-        output.write('\n')
-        NPD+=str(label_VA_coordination)+","
-        AB_list.append(s)
-    else :
-        continue
+# read the COLVAR files for the virtual contacts
+df_virtual = read_colvar('COLVAR_third_filter','virtual_')
+# here we are keeping only the contacts that are more than 4 A away from the H-bond in the folded state and unfolded state in the corresponding dataframe
+df_virtualF = df_virtual[df_virtual['meanF'] > 0.4].dropna()
+df_virtualU = df_virtual[df_virtual['meanU'] > 0.4].dropna()
+# print in the output colvar file the NPA and NPD exclusion lists for folded and unfolded states
+#NOTE: this is automatically the symmetric case. We might want to add a flag that kills the second call to the function when we run the folded/unfolded case
+process_virtual(df_virtualF, [df_hard_sigF,df_soft_sigF], output, prefix_HD="NPA", prefix_AB="NPD")
+process_virtual(df_virtualU, [df_hard_sigU,df_soft_sigU], output, prefix_HD="NPA", prefix_AB="NPD")
 
 #####################################################################################################################
     
@@ -1243,16 +1256,16 @@ coefficients= {
     "cont_HB_hardU": -1.0,
     "NWH_hardU": 1.0/16.0,
     "NWO_hardU": 1.0/8.0,
-    "NPA_hardU": 0.0, ##DEBUG
-    "NPD_hardU": 0.0, ##DEBUG
+    "NPA_hardU": 1.0, ##DEBUG
+    "NPD_hardU": 0.5, ##DEBUG
     
     "cont_HB_softF": 1.0,
     "NPA_softF": -1.0, ##DEBUG
     "NPD_softF": -0.5, ##DEBUG
     
     "cont_HB_softU": -1.0,
-    "NPA_softU": 0.0,
-    "NPD_softU": 0.0,
+    "NPA_softU": 1.0,
+    "NPD_softU": 0.5,
 }
 
 temp = listcv.split(",")
@@ -1642,4 +1655,5 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
+
 
