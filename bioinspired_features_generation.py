@@ -291,7 +291,7 @@ if (water_model == 3.0 or water_model == 4.0): # 3 and 4 points supported
 elif (water_model % 1 == 0):
     sys.exit(error%('The water model detected has ' + str(water_model) + ' atoms per residue, which is not supported'))
 else:
-    sys.exit(error%('Non-integer number of water atoms detected (' + str(water_model) + ' atoms per residue). Check the reference file: ' + args_reference))
+    sys.exit(error%('Non-integer number of water atoms detected (' + str(water_model) + ' atoms per residue). Check the reference file: ' + args_reference_protein))
 
 first_oxygen = list(ref_solv[(ref_solv['resName'] == 'HOH') & (ref_solv['name'] == 'O')].head(1)['serial'])[0]
 last_oxygen = first_oxygen + water_model * (n_res_waters - 1)
@@ -1655,5 +1655,6 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
+
 
 
