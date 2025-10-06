@@ -218,6 +218,7 @@ parser.add_argument("-c", "--cutoff", required=False, default=0.6, type=float, h
 parser.add_argument("-s", "--stride", required=False, default=10, type=int, help="STRIDE for the PLUMED file in the filtering steps. Default: 10")
 parser.add_argument("-e", "--explicit", required=False, action='store_true', default=False, help='writes features in the explicit fashion')
 parser.add_argument("-py", "--pymol", required=False, action='store_true', default=False, help='saves a session of pymol with the main hydrogen bonds highlighted; requires the pymol module')
+parser.add_argument("-sy", "--symm", required=False, action='store_true', default=False, help='treats the two F and U symmetrically, i.e. it subtracts NNC from the HB_U')
 
 args = parser.parse_args()
 
@@ -240,8 +241,11 @@ args_cutoff = args.cutoff
 args_stride = args.stride
 args_explicit = args.explicit
 args_pymol = args.pymol
+args_symm = args.symm
 
-full_command = 'python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e' if args_explicit else '') + (' -py' if args_pymol else '')
+full_command = 'python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) \
+             + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e' if args_explicit else '') \
+             + (' -py' if args_pymol else '') + (' -sy' if args_symm else '')
 
 # Check format of input
 if (args_folded_trajectory[-3:] != "xtc" or args_unfolded_trajectory[-3:] != "xtc"):
@@ -327,6 +331,7 @@ print("Stride                      : " + str(int(args_stride)))
 print("LDA cutoff value            : " + str(args_lda))
 print("Cutoff value for the H-bonds: " + str(args_cutoff))
 print("Writing explicit features   : " + str(args_explicit))
+print("Symmetrical F and U         : " + str(args_symm))
 print("Pymol session generation    : " + str(args_pymol))
 if args_pymol: print(f"Pymol session saved in file : {inp_dir}/symmary_pymol_session.pse")
 print("################################################################################################################")
@@ -1221,18 +1226,19 @@ coefficients= {
     "cont_HB_hardF": 1.0,
     "NWH_hardF": -1.0/16.0,
     "NWO_hardF": -1.0/8.0,
-    "NPA_hardF": -1.0, ##DEBUG
-    "NPD_hardF": -0.5, ##DEBUG
+    "NPA_hardF": -1.0,
+    "NPD_hardF": -0.5,
     
     "cont_HB_hardU": -1.0,
     "NWH_hardU": 1.0/16.0,
     "NWO_hardU": 1.0/8.0,
-    "NPA_hardU": 1.0, ##DEBUG
-    "NPD_hardU": 0.5, ##DEBUG
+    
+    "NPA_hardU": 1.0 if args_symm else 0.0,
+    "NPD_hardU": 0.5 if args_symm else 0.0,
     
     "cont_HB_softF": 1.0,
-    "NPA_softF": -1.0, ##DEBUG
-    "NPD_softF": -0.5, ##DEBUG
+    "NPA_softF": -1.0,
+    "NPD_softF": -0.5,
     
     "cont_HB_softU": -1.0,
     "NPA_softU": 1.0,
@@ -1252,7 +1258,7 @@ output.write('\n')
 
 ###########################################
 # normal explicit definitions
-################################
+###########################################
 
 if args_explicit:
      
