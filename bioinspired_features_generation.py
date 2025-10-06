@@ -281,6 +281,15 @@ outname_protein_CA_ref = 'ref_proteinCA_biofeat.pdb'
 ref_prot_CA_topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select("name CA and (" + args_where + ")"))
 ref_prot_CA_topology[0].save(outname_protein_CA_ref)
 
+# Fix the pdb by cleaning the header and foooter which are not liked by PLUMED
+with open(outname_protein_CA_ref, 'r') as f:
+    lines_CA = f.readlines()
+
+with open(outname_protein_CA_ref, 'w') as f:
+    for line in lines_CA:
+        if line.startswith(('ATOM', 'HETATM')):
+            f.write(line)
+
 # checks the type of water (# atoms in the model)
 topology_solv = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select("water")).topology
 ref_solv, bonds_solv = topology_solv.to_dataframe()
