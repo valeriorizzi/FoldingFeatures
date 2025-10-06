@@ -218,7 +218,6 @@ parser.add_argument("-c", "--cutoff", required=False, default=0.6, type=float, h
 parser.add_argument("-s", "--stride", required=False, default=10, type=int, help="STRIDE for the PLUMED file in the filtering steps. Default: 10")
 parser.add_argument("-e", "--explicit", required=False, action='store_true', default=False, help='writes features in the explicit fashion')
 parser.add_argument("-py", "--pymol", required=False, action='store_true', default=False, help='saves a session of pymol with the main hydrogen bonds highlighted; requires the pymol module')
-parser.add_argument("-y", "--yes", required=False, action='store_true', default=False, help='avoid interactivity and run the whole script automatically')
 
 args = parser.parse_args()
 
@@ -241,7 +240,8 @@ args_cutoff = args.cutoff
 args_stride = args.stride
 args_explicit = args.explicit
 args_pymol = args.pymol
-args_yes = args.yes
+
+full_command = 'python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e' if args_explicit else '') + (' -py' if args_pymol else '')
 
 # Check format of input
 if (args_folded_trajectory[-3:] != "xtc" or args_unfolded_trajectory[-3:] != "xtc"):
@@ -332,18 +332,6 @@ if args_pymol: print(f"Pymol session saved in file : {inp_dir}/symmary_pymol_ses
 print("################################################################################################################")
 print("\n")
 
-# check if everything's good with the user
-if not args_yes:
-    user_input = input("Do you want to continue? (yes/no): ")
-    while (user_input.lower() != "yes" and user_input.lower() != "no"):
-        print(str(user_input) + " not understood. Please type yes or no.")
-        user_input = input("Do you want to continue? (yes/no): ")
-    if user_input.lower() == "yes":
-        print("Continuing...")
-    else:
-        print('Exiting ...')
-        exit()
-
 logging.info(' BIOINSPIRED_FEATURES_GENERATION Python script version ' + str(version))
 logging.info(' Please read and cite the following reference:')
 logging.info(' The Arch from the Stones: Understanding Protein Folding Energy Landscapes via Bioinspired Collective Variables')
@@ -351,7 +339,7 @@ logging.info(' The Journal of Physical Chemistry Letters, 16, 9636-9645, (2025)'
 logging.info(' Rizzi, V., Héritier, M., Piasentin, N., Aureli, S., & Gervasio, F. L.')
 logging.info(' doi: 10.1021/acs.jpclett.5c02079')
 logging.info(' Command Line:')
-logging.info(' python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
+logging.info(' ' + full_command)
 logging.info(' Started on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 logging.info('\n')
 
@@ -373,8 +361,6 @@ for atom in hbond_acceptor:
 # write a PLUMED script to get the distances of all possible H-bonds in the structure
 print("Writing plumed_1.dat file ...")
 output= open('plumed_1.dat', 'w')
-#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-#output.write('\n')
 output.write('# all distances between possible H-bonds')
 output.write('\n')
 
@@ -418,8 +404,6 @@ df = df.sort_values(by=['labels'], ascending=True).reset_index()
 # writes PLUMED script to obtain the angle information from the relevant H-bonds in df
 print("Writing plumed_2.dat file to obtain angle information ...")
 output = open('plumed_2.dat', 'w')
-#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-#output.write('\n')
 output.write('\n')
 
 for i in range(0,len(df)):
@@ -659,8 +643,6 @@ all_acceptors = table[(table['element'] == "O") | (table['element'] == "N")].res
 
 print("Writing plumed_3.dat ...")
 output = open('plumed_3.dat', 'w')
-#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-#output.write('\n')
 
 for i in range(0,len(df_hard_soft)):
     labels = df_hard_soft['labels'][i]
@@ -784,14 +766,7 @@ os.chdir(inp_dir)
 # writes a PLUMED file for the side-chain contacts
 print("Writing plumed_SC.dat for the side-chain contacts ...")
 output = open('plumed_SC.dat', 'w')
-#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-#output.write('\n')
 output.write('\n')
-
-# take only the residues numbers in the selection for the side chain checks
-#full_target = mdtraj.load(args_reference_protein, top=args_reference_protein).topology
-#target = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_target.select(args_where))
-#number_residues = [res.resSeq for res in target.topology.residues]
 
 # to calculate the geometric center of the side chains (SC)
 for res in number_residues:
@@ -865,8 +840,6 @@ dffiltered = pd.concat([dffilteredFmU, dffilteredUmF])
 
 print("Writing plumed_solvation.dat for the solvation features ...")
 output = open('plumed_solvation.dat', 'w')
-#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-#output.write('\n')
 output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model))
 output.write('\n')
 output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model))
@@ -915,13 +888,11 @@ print("Writing the final plumed file ...")
 output = open('plumed_final.dat', 'w')
 output.write('# This PLUMED file has been generated by bioinspired_features_generation.py on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 output.write('\n')
-output.write('# Command : python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
+output.write('# Command: ' + full_command)
 output.write('\n')
 output.write('\n')
 output.write("#RESTART")
 output.write('\n')
-#output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-#output.write('\n')
 output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model))
 output.write('\n')
 output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model))
