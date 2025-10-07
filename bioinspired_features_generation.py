@@ -11,9 +11,33 @@ import subprocess
 import logging
 import datetime
 
-version = 1.0
+version = 2.0
 error = '--- ERROR: %s \n'
 logging.basicConfig(filename='bioinspired_features.log', filemode='a', format='%(levelname)s:%(message)s', level=logging.INFO)
+
+colours = datetime.datetime.now().strftime("%H:%M:%S:%f").split(":")
+
+_p = "\033[38;5;" + str(int((float(colours[0])*float(colours[3])) % 256)) + "m+\033[0m"
+_m = "\033[38;5;" + str(int((float(colours[1])*float(colours[3])) % 256)) + "m-\033[0m"
+_h = "\033[38;5;" + str(int((float(colours[2])*float(colours[3])) % 256)) + "m#\033[0m"
+
+logo = "\n"
+logo += r"______ _       _                 _              _       " + f"           {_p}{_h}{_p}{_m}{_m}{_m}{_p}{_h}                             " + "\n"
+logo += r"| ___ (_)     (_)               (_)            | |      " + f"           {_p} {_m}{_m}{_m} {_p}                              " + "\n"
+logo += r"| |_/ /_  ___  _ _ __  ___ _ __  _ _ __ ___  __| |      " + f"           {_p} {_p}{_p}                                 " + "\n"
+logo += r"| ___ \ |/ _ \| | '_ \/ __| '_ \| | '__/ _ \/ _` |      " + f"         {_p}{_p}  {_p}{_p}       {_p}{_p}                        " + "\n"
+logo += r"| |_/ / | (_) | | | | \__ \ |_) | | | |  __/ (_| |      " + f"       {_m}{_p}     {_h}{_h}{_p}  {_m}{_p}   {_h}                       " + "\n"
+logo += r"\____/|_|\___/|_|_| |_|___/ .__/|_|_|  \___|\__,_|      " + f"       {_p}               {_p}{_m}{_m}{_m}{_p}                    " + "\n"
+logo += r"                          | |                           " + f"        {_p}               {_p}{_m}{_m}{_m}                    " + "\n"
+logo += r"                          |_|                           " + f"        {_p}{_p}         {_m}{_m}{_m}{_m}{_m}{_p}{_p}{_p}{_h}                    " + "\n"
+logo += r"______         _                                        " + f"         {_p}        {_h}{_p}{_p}{_p}{_p}{_p}{_p}{_h}                      " + "\n"
+logo += r"|  ___|       | |                                       " + f"         {_p}          {_p}{_p}{_p}{_m}{_m}                       " + "\n"
+logo += r"| |_ ___  __ _| |_ _   _ _ __ ___  ___                  " + f"        {_p}             {_p}{_m}{_m}{_p}                      " + "\n"
+logo += r"|  _/ _ \/ _` | __| | | | '__/ _ \/ __|                 " + f"      {_p}{_p}        {_m}{_m}{_m}{_m}{_m}{_p}{_p}{_p}{_h}                       " + "\n"
+logo += r"| ||  __/ (_| | |_| |_| | | |  __/\__ \                 " + f"   {_m}{_p}           {_h}{_p}{_p}{_p}{_p}{_p}{_h}{_h}                        " + "\n"
+logo += r"\_| \___|\__,_|\__|\__,_|_|  \___||___/                 " + f"                {_h}{_p}{_m}{_m}{_m}{_p}                          " + "\n"
+logo += r"                                                        " + f"                  {_p}{_m}{_m}{_m}{_p}                         " + "\n"
+logo += r"                                                        " + f"                      {_p}{_p}                        " + "\n"
 
 # nomenclatures for hbond donors and acceptors
 # tested agains desamber, amber99SB-ildn, charmm27, GROMOS, OPLS
@@ -66,7 +90,7 @@ hbond_donor = list(hatom_hdonor_dict)
 def read_colvar(name: str, cv_prefix: str):
     """
     Read the colvar files of the folded and unfolded directories
-    Returns a dataframe with some statistics on loaded CVs (except time)
+    Returns a dataframe with some statistics on loaded CVs
     """
     # Reads COLVAR file
     filenamesF = args_folded_dir + "/" + name
@@ -100,6 +124,79 @@ def read_colvar(name: str, cv_prefix: str):
     df = df[df['labels'].str.startswith(cv_prefix)]
     return df
 
+def process_virtual(df_virtual, dfs_sigHB, output, prefix_HD="NPA", prefix_AB="NPD"):
+    """
+    Takes as input a dataframe df_virtual and list of dataframes df_sigHB
+    Computes the NPD and NPA exclusion lists based on the acceptor/donor candidates in df_virtual and
+    the significant hard/soft folded/unfolded hbonds in the dfs_sigHB list of dataframes
+    """
+    df_VH = df_virtual[df_virtual['labels'].str.contains("virtual_HD")].reset_index()
+    df_VA = df_virtual[df_virtual['labels'].str.contains("virtual_AB")].reset_index()
+
+    HD_list = []
+    NPA = ""
+
+    for i in range(len(df_VH)):
+        
+        label = df_VH['labels'][i]
+        match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', label)
+        match_number = re.findall(r'_(\d+)', label)
+        hbond = match_atomtype[0] + "_" + str(match_number[0]) + "-" + match_atomtype[1] + "_" + str(match_number[1])
+        
+        # only keep the virtual contacts that are part of one of the significant H-bonds dfs
+        # NOTE: each label_temp should be found only in one of the dfs in dfs_sigHB
+
+        for df_sigHB in dfs_sigHB:
+            if df_sigHB['labels'].str.contains(hbond).any() == True:
+                
+                temp = df_VH[df_VH['labels'].str.contains('_' + hbond + '-')].reset_index() # BEWARE OF THE STRING, DANGEROUS FIX
+
+                serial = ""
+                for j in range(len(temp)):
+                    label = temp['labels'][j]
+                    match_number = re.findall(r'_(\d+)', label)
+                    serial += str(match_number[2]) + ","
+
+                label_VH_coordination = f"{prefix_HD}_" + hbond
+                s = (label_VH_coordination + ": COORDINATION GROUPA=" + "VH_" + hbond +
+                    " GROUPB=" + serial + " SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} "
+                    "NLIST NL_CUTOFF=0.8 NL_STRIDE=20")
+
+                if s not in HD_list:
+                    output.write(s + "\n")
+                    HD_list.append(s)
+                    NPA += label_VH_coordination + ","
+
+    output.write("\n")
+
+    AB_list = []
+    NPD = ""
+
+    for i in range(len(df_VA)):
+        label = df_VA['labels'][i]
+        match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', label)
+        match_number = re.findall(r'_(\d+)', label)
+        hbond = match_atomtype[0] + "_" + str(match_number[0]) + "-" + match_atomtype[1] + "_" + str(match_number[1])
+        
+        for df_sigHB in dfs_sigHB:
+            if df_sigHB['labels'].str.contains(hbond).any() == True:
+        
+                temp = df_VA[df_VA['labels'].str.contains('_' + hbond + '-')].reset_index() # BEWARE OF THE STRING, DANGEROUS FIX
+                serial = ""
+                for j in range(len(temp)):
+                    label = temp['labels'][j]
+                    match_number = re.findall(r'_(\d+)', label)
+                    serial += str(match_number[2]) + ","
+
+                label_VA_coordination = f"{prefix_AB}_" + hbond
+                s = (label_VA_coordination + ": COORDINATION GROUPA=" + "VA_" + hbond +
+                    " GROUPB=" + serial + " SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} "
+                    "NLIST NL_CUTOFF=0.8 NL_STRIDE=20")
+
+                if s not in AB_list:
+                    output.write(s + "\n")
+                    AB_list.append(s)
+                    NPD += label_VA_coordination + ","
 
 # Parse user inputs
 parser = argparse.ArgumentParser(
@@ -109,20 +206,19 @@ parser = argparse.ArgumentParser(
 )
 
 # compulsory
-parser.add_argument("-F", "--folded", required=True, type=os.path.abspath, help="unbiased folded trajectory (xtc file)")
-parser.add_argument("-U", "--unfolded", required=True, type=os.path.abspath, help="unbiased unfolded trajectory (xtc file)")
-parser.add_argument("-r", "--reference_pdb_solvated", required=True, type=os.path.abspath, help="reference PDB file of the solvated system")
-parser.add_argument("-rp", "--reference_protein", required=True, type=os.path.abspath, help="reference PDB file for the protein only")
-parser.add_argument("-rca", "--reference_CA", required=True, type=os.path.abspath, help="reference PDB file for the CA atoms only")
+parser.add_argument("-f", "--folded", required=True, type=os.path.abspath, help="unbiased folded trajectory (xtc file)")
+parser.add_argument("-u", "--unfolded", required=True, type=os.path.abspath, help="unbiased unfolded trajectory (xtc file)")
+parser.add_argument("-r", "--reference_protein", required=True, type=os.path.abspath, help="reference PDB file for the full system")
 parser.add_argument("-mc", "--mcfile", required=True, type=os.path.abspath, help="PLUMED mcfile")
 
 # other options
+parser.add_argument("-w", "--where", required=False, default="protein", type=str, help="Selection in mdtraj lingo. Default is 'protein'. If you need a specific part of the protein you can use e.g. 'protein and (residue 6 to 25 or residue 80 to 95)'")
 parser.add_argument("-l", "--lda", required=False, default=0.3, type=float, help="lda value to use for the filtering. Default: 0.3")
 parser.add_argument("-c", "--cutoff", required=False, default=0.6, type=float, help="cutoff value to use for the filtering. Default: 0.6nm")
 parser.add_argument("-s", "--stride", required=False, default=10, type=int, help="STRIDE for the PLUMED file in the filtering steps. Default: 10")
 parser.add_argument("-e", "--explicit", required=False, action='store_true', default=False, help='writes features in the explicit fashion')
 parser.add_argument("-py", "--pymol", required=False, action='store_true', default=False, help='saves a session of pymol with the main hydrogen bonds highlighted; requires the pymol module')
-parser.add_argument("-y", "--yes", required=False, action='store_true', default=False, help='avoid interactivity and run the whole script automatically')
+parser.add_argument("-sy", "--symm", required=False, action='store_true', default=False, help='treats the two F and U symmetrically, i.e. it subtracts NNC from the HB_U')
 
 args = parser.parse_args()
 
@@ -136,27 +232,29 @@ args_path_unfolded = args.unfolded
 args_unfolded_dir = os.path.dirname(args_path_unfolded)
 args_unfolded_trajectory = os.path.basename(args_path_unfolded)
 # references
-args_reference = args.reference_pdb_solvated
 args_reference_protein = args.reference_protein
-args_reference_ca = args.reference_CA
 args_mcfile = args.mcfile
 # additional parameters
+args_where = args.where
 args_lda = args.lda
 args_cutoff = args.cutoff
 args_stride = args.stride
 args_explicit = args.explicit
 args_pymol = args.pymol
-args_yes = args.yes
+args_symm = args.symm
+
+full_command = 'python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) \
+             + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e' if args_explicit else '') \
+             + (' -py' if args_pymol else '') + (' -sy' if args_symm else '')
 
 # Check format of input
-# Should we check also the mcfile?
 if (args_folded_trajectory[-3:] != "xtc" or args_unfolded_trajectory[-3:] != "xtc"):
     sys.exit(error%('Trajectories must be an xtc file.'))
-if (args_reference[-3:] != "pdb" or args_reference_protein[-3:] != "pdb" or args_reference_ca[-3:] != "pdb"):
+if args_reference_protein[-3:] != "pdb":
     sys.exit(error%('Reference structures must be a pdb file.'))
 # Check files availability
 missing_files = []
-for infile in [args_reference_protein, args_reference, args_reference_ca, args_mcfile, args_path_folded, args_path_unfolded]:
+for infile in [args_reference_protein, args_mcfile, args_path_folded, args_path_unfolded]:
     if not os.path.isfile(infile):
         missing_files.append(infile)
 if len(missing_files) > 0:
@@ -167,16 +265,37 @@ try:
 except:
     sys.exit(error%('PLUMED is not installed or has not been sourced properly.'))
 
-# load reference PDB file
-topology_solv = mdtraj.load(args_reference).topology
-ref_solv, bonds_solv = topology_solv.to_dataframe()
+# load reference PDB file (only protein)
+full_topology = mdtraj.load(args_reference_protein, top=args_reference_protein).topology
+topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select(args_where)).topology
+number_residues = [res.resSeq for res in topology.residues]
+table, bonds = topology.to_dataframe()
+
+# Save the protein locally as pdb file to help for analysis
+outname_protein_ref = 'ref_protein_biofeat.pdb'
+ref_prot_topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select("protein"))
+ref_prot_topology[0].save(outname_protein_ref)
+
+# Save the CAs of selection of protein locally as pdb file to help for analysis
+outname_protein_CA_ref = 'ref_proteinCA_biofeat.pdb'
+ref_prot_CA_topology = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select("name CA and (" + args_where + ")"))
+ref_prot_CA_topology[0].save(outname_protein_CA_ref)
+
+# Fix the pdb by cleaning the header and foooter which are not liked by PLUMED
+with open(outname_protein_CA_ref, 'r') as f:
+    lines_CA = f.readlines()
+
+with open(outname_protein_CA_ref, 'w') as f:
+    for line in lines_CA:
+        if line.startswith(('ATOM', 'HETATM')):
+            f.write(line)
 
 # checks the type of water (# atoms in the model)
-# safer to check the number of atoms rather than the names as we pick up also broken pdbs
-n_atoms_water = len(topology_solv.select("water"))
-n_res_waters = 0
-for residue in topology_solv.residues:
-    if residue.is_water: n_res_waters += 1
+topology_solv = mdtraj.load(args_reference_protein, top=args_reference_protein, atom_indices=full_topology.select("water")).topology
+ref_solv, bonds_solv = topology_solv.to_dataframe()
+
+n_atoms_water = len(full_topology.select("water"))
+n_res_waters = topology_solv.n_residues
 water_model = n_atoms_water/n_res_waters
 
 # checks that the number is divisible by three or four, not perfect but relatively robust
@@ -185,14 +304,17 @@ if (water_model == 3.0 or water_model == 4.0): # 3 and 4 points supported
 elif (water_model % 1 == 0):
     sys.exit(error%('The water model detected has ' + str(water_model) + ' atoms per residue, which is not supported'))
 else:
-    sys.exit(error%('Non-integer number of water atoms detected (' + str(water_model) + ' atoms per residue). Check the reference file: ' + args_reference))
+    sys.exit(error%('Non-integer number of water atoms detected (' + str(water_model) + ' atoms per residue). Check the reference file: ' + args_reference_protein))
+
+first_oxygen = list(ref_solv[(ref_solv['resName'] == 'HOH') & (ref_solv['name'] == 'O')].head(1)['serial'])[0]
+last_oxygen = first_oxygen + water_model * (n_res_waters - 1)
 
 # check if pymol works if the saving of a pymol session is requested
 if args_pymol:
     try:
         import pymol
     except ImportError:
-        print("WARNING: Module pymol not found. Is it installed?")
+        print("\nWARNING: Module pymol not found. Is it installed?")
         print("WARNING: Will not print the pymol session...")
         args_pymol = False
     except:
@@ -202,41 +324,27 @@ if args_pymol:
     else:
         from pymol import cmd
 
-# store first and last water oxygen atoms
-first_oxygen = list(ref_solv[(ref_solv['resName'] == 'HOH') & (ref_solv['name'] == 'O')].head(1)['serial'])[0]
-last_oxygen = list(ref_solv[(ref_solv['resName'] == 'HOH') & (ref_solv['name'] == 'O')].tail(1)['serial'])[0]
-
 # some on screen info
+print("\n")
+print(logo)
 print("\n")
 print("################################################################################################################")
 print("Working directory           : " + str(inp_dir))
-print("Reference file (solvated)   : " + str(args_reference))
-print("Reference file (protein)    : " + str(args_reference_protein))
-print("Reference file (protein CA) : " + str(args_reference_ca))
+print("Reference box               : " + str(args_reference_protein))
 print("Folded trajectory file      : " + str(args_path_folded))
 print("Unfolded trajectory file    : " + str(args_path_unfolded))
 print("Reference mcfile            : " + str(args_mcfile))
 print("Water model detected        : " + str(water_model) + "-points water model.")
+print("Selection for feature ext.  : " + str(args_where))
 print("Stride                      : " + str(int(args_stride)))
 print("LDA cutoff value            : " + str(args_lda))
 print("Cutoff value for the H-bonds: " + str(args_cutoff))
 print("Writing explicit features   : " + str(args_explicit))
+print("Symmetrical F and U         : " + str(args_symm))
 print("Pymol session generation    : " + str(args_pymol))
 if args_pymol: print(f"Pymol session saved in file : {inp_dir}/symmary_pymol_session.pse")
 print("################################################################################################################")
 print("\n")
-
-# check if everything's good with the user
-if not args_yes:
-    user_input = input("Do you want to continue? (yes/no): ")
-    while (user_input.lower() != "yes" and user_input.lower() != "no"):
-        print(str(user_input) + " not understood. Please type yes or no.")
-        user_input = input("Do you want to continue? (yes/no): ")
-    if user_input.lower() == "yes":
-        print("Continuing...")
-    else:
-        print('Exiting ...')
-        exit()
 
 logging.info(' BIOINSPIRED_FEATURES_GENERATION Python script version ' + str(version))
 logging.info(' Please read and cite the following reference:')
@@ -245,13 +353,9 @@ logging.info(' The Journal of Physical Chemistry Letters, 16, 9636-9645, (2025)'
 logging.info(' Rizzi, V., Héritier, M., Piasentin, N., Aureli, S., & Gervasio, F. L.')
 logging.info(' doi: 10.1021/acs.jpclett.5c02079')
 logging.info(' Command Line:')
-logging.info(' python bioinspired_features_generation_v.1.py -F '+ str(args_path_folded) + ' -U ' + str(args_path_unfolded) + ' -r ' + str(args_reference) + ' -rp ' + str(args_reference_protein) + ' -rca ' + str(args_reference_ca) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
+logging.info(' ' + full_command)
 logging.info(' Started on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 logging.info('\n')
-
-# load reference PDB file (only protein)
-topology = mdtraj.load(args_reference_protein).topology
-table, bonds = topology.to_dataframe()
 
 # generate a list of dataframes of all the hydrogens that could participate in H-bonds in args_reference_protein
 list_hbond_donors = []
@@ -271,8 +375,6 @@ for atom in hbond_acceptor:
 # write a PLUMED script to get the distances of all possible H-bonds in the structure
 print("Writing plumed_1.dat file ...")
 output= open('plumed_1.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
 output.write('# all distances between possible H-bonds')
 output.write('\n')
 
@@ -295,15 +397,15 @@ output.close()
 
 print("Running plumed_1.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} 1> plumed_1_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --ixtc {args_folded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_1_folded.out")
 print("Running plumed_1.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} 1> plumed_1_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_1.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_1_unfolded.out")
 os.chdir(inp_dir)
 
 print("Reading COLVAR file for the first filter ...")
 df = read_colvar('COLVAR_first_filter', '')
-# drop H bonds with average length < 0.4nm
+# drop H bonds with average length > 0.4nm
 df = df.drop(df[(df['meanF'] > 0.4) & (df['meanU'] > 0.4) ].index).dropna()
 # to remove the potential contacts within the same residues that don't display any difference between folded and unfolded
 # drop H bonds with average difference between folded and unfolded < 0.01 nm
@@ -316,8 +418,6 @@ df = df.sort_values(by=['labels'], ascending=True).reset_index()
 # writes PLUMED script to obtain the angle information from the relevant H-bonds in df
 print("Writing plumed_2.dat file to obtain angle information ...")
 output = open('plumed_2.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
 output.write('\n')
 
 for i in range(0,len(df)):
@@ -471,10 +571,10 @@ outfile.close()
 
 print("Running plumed_2.dat file on folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} 1> plumed_2_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --ixtc {args_folded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_2_folded.out")
 print("Running plumed_2.dat file on unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} 1> plumed_2_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_2_noduplicate.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_2_unfolded.out")
 os.chdir(inp_dir)
 
 print("Reading COLVAR files ...")
@@ -517,6 +617,26 @@ df_soft_sigF = df_soft[df_soft['Significant folded']== True]
 df_soft_sigF = df_soft_sigF.sort_values(by=['lda'],ascending=False).reset_index(drop=True)
 df_soft_sigU = df_soft[df_soft['Significant unfolded']== True]
 df_soft_sigU = df_soft_sigU.sort_values(by=['lda'],ascending=False).reset_index(drop=True)
+
+# sometimes more than 1 H is picked up from aa like K, giving too much weight to that component of the CV. We need to clean them up
+# they should naturally be consecutive
+### HERE
+#previous_soft_hbond = [-1,-1]
+#for index, row in df_soft_sigF.iterrows():
+#    # get atoms
+#    print(index, row)
+#    label_name = row['labels'].split("_")
+#    atom_a = label_name[2].split("-")[0]
+#    atom_b = label_name[3]
+#    res_a = full_topology.atom(int(atom_a)).residue.resSeq
+#    res_b = full_topology.atom(int(atom_b)).residue.resSeq
+#    if [res_a, res_b] == previous_soft_hbond:
+#        print("{res_a} and {res_b} have common soft hbonds")
+#    else:
+#        previous_soft_hbond = [res_a, res_b]
+#    print(atom_a,atom_b)
+#    print(res_a,res_b)
+
 df_soft_sigF_sigU = pd.concat([df_soft_sigF,df_soft_sigU]).reset_index(drop=True)
 
 # concatenating a dataframe with all the hard and soft H-bonds
@@ -537,8 +657,6 @@ all_acceptors = table[(table['element'] == "O") | (table['element'] == "N")].res
 
 print("Writing plumed_3.dat ...")
 output = open('plumed_3.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
 
 for i in range(0,len(df_hard_soft)):
     labels = df_hard_soft['labels'][i]
@@ -647,20 +765,14 @@ output.write('PRINT STRIDE='+str(args_stride)+ ' ARG=* FILE=COLVAR_third_filter'
 output.write('\n')
 output.close()
 
-print("Running plumed_3.dat on folded trajectory ...")
+#print("Running plumed_3.dat on folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --mf_xtc {args_folded_trajectory}  --pdb {args_reference} 1> plumed_3_folded.out")
+print("Running plumed_3.dat on folded trajectory ...")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_folded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_3_folded.out")
 print("Running plumed_3.dat on unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --mf_xtc {args_unfolded_trajectory}  --pdb {args_reference} 1> plumed_3_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_3.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_3_unfolded.out")
 os.chdir(inp_dir)
-
-# read the COLVAR files for the virtual contacts
-df_virtual = read_colvar('COLVAR_third_filter','virtual_')
-df_virtual = df_virtual.sort_values(by=['meanF'],ascending=True)
-# here we are keeping only the contacts that are more than 4 A away from the H-bond in the folded state
-df_virtual = df_virtual[df_virtual['meanF'] > 0.4].dropna() 
-# df_virtual.sort_values(by=['meanF'],ascending=True)
 
 #############################################################################
 # Adding the side chains
@@ -668,47 +780,48 @@ df_virtual = df_virtual[df_virtual['meanF'] > 0.4].dropna()
 # writes a PLUMED file for the side-chain contacts
 print("Writing plumed_SC.dat for the side-chain contacts ...")
 output = open('plumed_SC.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
 output.write('\n')
-output.write('\n')
-
-# to save the amount of residues forming the protein
-target = mdtraj.load(args_reference_protein)
-numres=target.topology.select("name CA").shape
 
 # to calculate the geometric center of the side chains (SC)
-resID_nogly=[]
-for i in range(0,numres[0]):
-    p=target.topology.select("resid "+str(i)+" and not backbone and not (type H)")+1
+for res in number_residues:
+    p = full_topology.select("protein and residue " + str(res) + " and not backbone and not (type H)") + 1
     p = p.tolist()
     if len(p) !=0:
-        s="SC"+str(i+1)+": CENTER ATOMS="+str(p)+"MASS"
+        s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
     else:
-        p=target.topology.select("resid "+str(i)+" and backbone and name CA")+1
-        s="SC"+str(i+1)+": CENTER ATOMS="+str(p)+"MASS"
+        p = full_topology.select("protein and residue " + str(res) + " and backbone and name CA") + 1
+        s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
 output.write('\n')
 
 # CV of the distances between the SCs (adjacent SC are not taken into account)
-# the list resID_nogly is needed to take into account the removal of GLYs
-for i in range(1,numres[0]+1):
-    for j in range(i+2,numres[0]+1):
-        label = "contside"+str(i)+"-"+str(j)+": "
-        output.write(str(label)+"COORDINATION GROUPA=SC"+str(i)+" GROUPB=SC"+str(j)+"  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
-        output.write('\n')
-output.write('\n')
+if len(number_residues) > 2:
+    for i in range(0, len(number_residues)):
+        res = number_residues[i]
+        for j in range(i+1, len(number_residues)):
+            exclude_res = number_residues[j]
+            # don't consider neighbouring aa
+            if res + 1 == exclude_res: continue
+            label = "contside" + str(res) + "-" + str(exclude_res) + ": "
+            output.write(str(label)+"COORDINATION GROUPA=SC" + str(res) + " GROUPB=SC" + str(exclude_res) + "  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
+            output.write('\n')
+    output.write('\n')
 
 # calculate the distance between the two center of masse of residues pairs
-for i in range(1,numres[0]+1):
-    for j in range(i+2,numres[0]+1):
-        label = "SC"+str(i)+"-"+str(j)+": "
-        output.write(str(label)+"CENTER ATOMS=SC"+str(i)+",SC"+str(j))
-        output.write('\n')
-output.write('\n')
-
+if len(number_residues) > 2:
+    for i in range(0, len(number_residues)):
+        res = number_residues[i]
+        for j in range(i+1, len(number_residues)):
+            exclude_res = number_residues[j]
+            # don't consider neighbouring aa
+            if res + 1 == exclude_res: continue
+            label = "SC" + str(res) + "-" + str(exclude_res) + ": "
+            output.write(str(label) + "CENTER ATOMS=SC" + str(res) + ",SC" + str(exclude_res))
+            output.write('\n')
+    output.write('\n')
 
 output.write('PRINT STRIDE='+str(args_stride)+ ' ARG=* FILE=COLVAR_SC')
 output.write('\n')
@@ -717,10 +830,10 @@ output.close()
 
 print("Running plumed_SC.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} --mc {args_mcfile} 1> plumed_SC_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_SC_folded.out")
 print("Running plumed_SC.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} --mc {args_mcfile} 1> plumed_SC_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_SC.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_SC_unfolded.out")
 os.chdir(inp_dir)
 
 # read the COLVAR files for the side chain contacts
@@ -729,13 +842,9 @@ df_sc = read_colvar('COLVAR_SC', 'contside')
 dffilteredFmU = df_sc[df_sc['FminusU'] > 0.0].dropna()
 dffilteredFmU = dffilteredFmU[dffilteredFmU['meanF'] > args_cutoff].dropna()
 dffilteredFmU = dffilteredFmU[dffilteredFmU['lda'] > args_lda].dropna()
-#dffilteredFmU.sort_values(by=['lda'],ascending=False)
-
 dffilteredUmF = df_sc[df_sc['FminusU'] < 0.0].dropna()
 dffilteredUmF = dffilteredUmF[dffilteredUmF['meanU'] > args_cutoff].dropna()
 dffilteredUmF = dffilteredUmF[dffilteredUmF['lda'] > args_lda].dropna()
-#dffilteredUmF.sort_values(by=['lda'],ascending=False)
-
 dffiltered = pd.concat([dffilteredFmU, dffilteredUmF])
 
 ##################################################################################
@@ -745,8 +854,6 @@ dffiltered = pd.concat([dffilteredFmU, dffilteredUmF])
 
 print("Writing plumed_solvation.dat for the solvation features ...")
 output = open('plumed_solvation.dat', 'w')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
-output.write('\n')
 output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model))
 output.write('\n')
 output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model))
@@ -770,10 +877,10 @@ output.close()
 
 print("Running plumed_solvation.dat on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} 1> plumed_solvation_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --ixtc {args_folded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_solvation_folded.out")
 print("Running plumed_solvation.dat on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} 1> plumed_solvation_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_solvation.dat --ixtc {args_unfolded_trajectory} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_solvation_unfolded.out")
 os.chdir(inp_dir)
 
 os.system(f'sed -i "s/#NLIST/NLIST/g" {inp_dir}/plumed_solvation.dat') ##DEBUG
@@ -795,18 +902,16 @@ print("Writing the final plumed file ...")
 output = open('plumed_final.dat', 'w')
 output.write('# This PLUMED file has been generated by bioinspired_features_generation.py on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 output.write('\n')
-output.write('# Command : python bioinspired_features_generation_v.1.py -F '+ str(args_path_folded) + ' -U ' + str(args_path_unfolded) + ' -r ' + str(args_reference) + ' -rp ' + str(args_reference_protein) + ' -rca ' + str(args_reference_ca) + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e ' if args_explicit else '') + (' -py ' if args_pymol else '')  + (' -y ' if args_yes else ''))
+output.write('# Command: ' + full_command)
 output.write('\n')
 output.write('\n')
 output.write("#RESTART")
-output.write('\n')
-output.write(f"MOLINFO MOLTYPE=protein STRUCTURE={args_reference_protein}")
 output.write('\n')
 output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model))
 output.write('\n')
 output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model))
 output.write('\n')
-output.write(f'rmsd_ca: RMSD REFERENCE={args_reference_ca} TYPE=OPTIMAL') ##TO DEBUG
+output.write(f'rmsd_ca: RMSD REFERENCE={inp_dir}/{outname_protein_CA_ref} TYPE=OPTIMAL') ##TO DEBUG
 output.write('\n')
 output.write('\n')
 
@@ -975,70 +1080,17 @@ for i in range(0,len(df_hard_soft)):
             output.write(s_NWO)
             output.write('\n')
 
-############################################
+#####################################################################################################################
 
-# add the exclusion list based on the ghost atoms
-
-df_VH = df_virtual[df_virtual['labels'].str.contains("virtual_HD")].reset_index()
-df_VA = df_virtual[df_virtual['labels'].str.contains("virtual_AB")].reset_index()
-
-HD_list = []
-NPA = ""
-
-for i in range(0,len(df_VH)):
-    label = df_VH['labels'][i]
-    match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', label)
-    match_number = re.findall(r'_(\d+)', label)
-    label_temp = match_atomtype[0] + "_" + str(match_number[0]) + "-" + match_atomtype[1] + "_" + str(match_number[1])
-    temp = df_VH[df_VH['labels'].str.contains(label_temp)].reset_index()
-
-    serial = ""
-    for j in range(0,len(temp)):
-        label = temp['labels'][j]
-        match_number = re.findall(r'_(\d+)', label)
-        serial +=str(match_number[2])+","
-        
-    label_VH_coordination = "NPA_" + label_temp
-    s = label_VH_coordination + ": COORDINATION GROUPA=" + "VH_" +label_temp + " GROUPB=" + serial +" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
-
-    if s not in HD_list:
-       output.write(s)
-       output.write('\n')
-       HD_list.append(s)
-       NPA+=str(label_VH_coordination)+","
-    else :
-       continue
-
-output.write('\n')
-
-AB_list = []
-
-NPD = ""
-
-for i in range(0,len(df_VA)):
-    label = df_VA['labels'][i]
-    match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', label)
-    match_number = re.findall(r'_(\d+)', label)
-    label_temp = match_atomtype[0] + "_" + str(match_number[0]) + "-" + match_atomtype[1] + "_" + str(match_number[1])
-    temp = df_VA[df_VA['labels'].str.contains(label_temp)].reset_index()
-
-    serial = ""
-    for j in range(0,len(temp)):
-        label = temp['labels'][j]
-        match_number = re.findall(r'_(\d+)', label)
-        serial +=str(match_number[2])+","
-        
-    label_VA_coordination = "NPD_" + label_temp
-    
-    s = label_VA_coordination + ": COORDINATION GROUPA=" + "VA_" + label_temp + " GROUPB=" + serial +" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
-
-    if s not in AB_list:
-        output.write(s)
-        output.write('\n')
-        NPD+=str(label_VA_coordination)+","
-        AB_list.append(s)
-    else :
-        continue
+# read the COLVAR files for the virtual contacts
+df_virtual = read_colvar('COLVAR_third_filter','virtual_')
+# here we are keeping only the contacts that are more than 4 A away from the H-bond in the folded state and unfolded state in the corresponding dataframe
+df_virtualF = df_virtual[df_virtual['meanF'] > 0.4].dropna()
+df_virtualU = df_virtual[df_virtual['meanU'] > 0.4].dropna()
+# print in the output colvar file the NPA and NPD exclusion lists for folded and unfolded states
+#NOTE: this is automatically the symmetric case. We might want to add a flag that kills the second call to the function when we run the folded/unfolded case
+process_virtual(df_virtualF, [df_hard_sigF,df_soft_sigF], output, prefix_HD="NPA", prefix_AB="NPD")
+process_virtual(df_virtualU, [df_hard_sigU,df_soft_sigU], output, prefix_HD="NPA", prefix_AB="NPD")
 
 #####################################################################################################################
     
@@ -1183,22 +1235,23 @@ coefficients= {
     "cont_HB_hardF": 1.0,
     "NWH_hardF": -1.0/16.0,
     "NWO_hardF": -1.0/8.0,
-    "NPA_hardF": -1.0, ##DEBUG
-    "NPD_hardF": -0.5, ##DEBUG
+    "NPA_hardF": -1.0,
+    "NPD_hardF": -0.5,
     
     "cont_HB_hardU": -1.0,
     "NWH_hardU": 1.0/16.0,
     "NWO_hardU": 1.0/8.0,
-    "NPA_hardU": 0.0, ##DEBUG  ## Work here to symmetrize
-    "NPD_hardU": 0.0, ##DEBUG
+    
+    "NPA_hardU": 1.0 if args_symm else 0.0,
+    "NPD_hardU": 0.5 if args_symm else 0.0,
     
     "cont_HB_softF": 1.0,
-    "NPA_softF": -1.0, ##DEBUG
-    "NPD_softF": -0.5, ##DEBUG
+    "NPA_softF": -1.0,
+    "NPD_softF": -0.5,
     
     "cont_HB_softU": -1.0,
-    "NPA_softU": 0.0,
-    "NPD_softU": 0.0,
+    "NPA_softU": 1.0,
+    "NPD_softU": 0.5,
 }
 
 temp = listcv.split(",")
@@ -1214,7 +1267,7 @@ output.write('\n')
 
 ###########################################
 # normal explicit definitions
-################################
+###########################################
 
 if args_explicit:
      
@@ -1262,46 +1315,48 @@ output.write('\n')
 output.write("# Now for the side chains ")
 output.write('\n') 
 
-target = mdtraj.load(args_reference_protein)
-
-#to save the amount of residues forming the protein
-numres=target.topology.select("name CA").shape
-
-# to calculate the geometric center of the side chains (SC)
-resID_nogly=[]
-for i in range(0,numres[0]):
-    p=target.topology.select("resid "+str(i)+" and not backbone and not (type H)")+1
+# to calculate the center of mass of the side chains (SC)
+for res in number_residues:
+    p = full_topology.select("protein and residue " + str(res) + " and not backbone and not (type H)") + 1
     p = p.tolist()
     if len(p) !=0:
-        s="SC"+str(i+1)+": CENTER ATOMS="+str(p)+"MASS"
+        s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
     else:
-        p=target.topology.select("resid "+str(i)+" and backbone and name CA")+1
-        s="SC"+str(i+1)+": CENTER ATOMS="+str(p)+"MASS"
+        p = full_topology.select("protein and residue " + str(res) + " and backbone and name CA") + 1
+        s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
         output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
         output.write('\n')
 output.write('\n')
 
 #CV of the distances between the SCs (adjacent SC are not taken into account)
-#the list resID_nogly is needed to take into account the removal of GLYs
-
 if args_explicit: 
-    for i in range(1,int(numres[0])+1):
-        for j in range(i+2,int(numres[0])+1):
-            label = "contside"+str(i)+"-"+str(j)+": "
-            output.write(str(label)+"COORDINATION GROUPA=SC"+str(i)+" GROUPB=SC"+str(j)+"  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
+    if len(number_residues) > 2:
+        for i in range(0,len(number_residues)):
+            res = number_residues[i]
+            for j in range(i+1,len(number_residues)):
+                exclude_res = number_residues[j]
+                # don't consider neighbouring aa
+                if res + 1 == exclude_res: continue
+                label = "contside" + str(res) + "-" + str(exclude_res) + ": "
+                output.write(str(label)+"COORDINATION GROUPA=SC" + str(res) + " GROUPB=SC" + str(exclude_res) + "  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
+                output.write('\n')
+        output.write('\n')
+
+# calculate the distance between the two center of masse of residues pairs
+#calculate the point where to evaluate water
+if len(number_residues) > 2:
+    for i in range(0,len(number_residues)):
+        res = number_residues[i]
+        for j in range(i+1,len(number_residues)):
+            exclude_res = number_residues[j]
+            # don't consider neighbouring aa
+            if res + 1 == exclude_res: continue
+            label = "SC" + str(res) + "-" + str(exclude_res) + ": "
+            output.write(str(label) + "CENTER ATOMS=SC" + str(res) + ",SC" + str(exclude_res))
             output.write('\n')
     output.write('\n')
-
-#calculate the point where to evaluate water
-#SC2-19: CENTER ATOMS=SC2,SC19
-for i in range(1,int(numres[0])+1):
-    for j in range(i+2,int(numres[0])+1):
-        label = "SC"+str(i)+"-"+str(j)+": "
-        output.write(str(label)+"CENTER ATOMS=SC"+str(i)+",SC"+str(j))
-        output.write('\n')
-output.write('\n')
 
 list_diff = []
 
@@ -1313,33 +1368,34 @@ if dffilteredFmU.empty == False:
     exclusion_listF =""
 
     listsc +="contsideF,exSCF"
-    
-    for i in range(0,len(dffilteredFmU)):
-            desc=str(dffilteredFmU['labels'].iloc[i])
-            exclabel=desc.replace("contside", "exc_SC" )
-            difflabel=desc.replace("contside", "diff_SC" )
-            exclusion_listF+= str(exclabel)+","
-            excgroupa=desc.replace("contside", "SC" )
-            excindeces=desc.replace("contside", "" )
-            ind1 = int(excindeces.split("-")[0])
-            ind2 = int(excindeces.split("-")[1])
-    
-            contsideaF+="SC"+str(ind1)+","
-            contsidebF+="SC"+str(ind2)+","
-            
-            excgroupb=""
-            for j in range(1,int(numres[0])+1):
-                if (j != ind1) and (j != ind2):
-                    excgroupb+="SC"+str(j)+","
-            output.write('\n')    
-            output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
-            output.write('\n')
-
-            if args_explicit: 
-                output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=1.0,-1.0 PERIODIC=NO")
-                list_diff.append(difflabel)
-                output.write('\n')
         
+    for i in range(0,len(dffilteredFmU)):
+        desc=str(dffilteredFmU['labels'].iloc[i])
+        exclabel=desc.replace("contside", "exc_SC" )
+        difflabel=desc.replace("contside", "diff_SC" )
+        exclusion_listF+= str(exclabel)+","
+        excgroupa=desc.replace("contside", "SC" )
+        excindeces=desc.replace("contside", "" )
+        ind1 = int(excindeces.split("-")[0])
+        ind2 = int(excindeces.split("-")[1])
+        
+        contsideaF+="SC"+str(ind1)+","
+        contsidebF+="SC"+str(ind2)+","
+                
+        excgroupb=""
+
+        for j in number_residues:
+            if (j != ind1) and (j != ind2):
+                excgroupb+="SC"+str(j)+","
+        output.write('\n')    
+        output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
+        output.write('\n')
+
+        if args_explicit: 
+            output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=1.0,-1.0 PERIODIC=NO")
+            list_diff.append(difflabel)
+            output.write('\n')
+            
     output.write('\n')
     output.write("contsideF: COORDINATION GROUPA="+contsideaF+" GROUPB="+contsidebF+" SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8} PAIR") 
     output.write('\n')
@@ -1358,30 +1414,31 @@ if dffilteredUmF.empty == False:
         listsc +="contsideU,exSCU"
     
     for i in range(0,len(dffilteredUmF)):
-            desc=str(dffilteredUmF['labels'].iloc[i])
-            exclabel=desc.replace("contside", "exc_SC" )
-            difflabel=desc.replace("contside", "diff_SC" )
-            exclusion_listU+= str(exclabel)+","
-            excgroupa=desc.replace("contside", "SC" )
-            excindeces=desc.replace("contside", "" )
-            ind1 = int(excindeces.split("-")[0])
-            ind2 = int(excindeces.split("-")[1])
-    
-            contsideaU+="SC"+str(ind1)+","
-            contsidebU+="SC"+str(ind2)+","
-            
-            excgroupb=""
-            for j in range(1,int(numres[0])+1):
-                if (j != ind1) and (j != ind2):
-                    excgroupb+="SC"+str(j)+","
-            output.write('\n')    
-            output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
-            output.write('\n')
+        desc=str(dffilteredUmF['labels'].iloc[i])
+        exclabel=desc.replace("contside", "exc_SC" )
+        difflabel=desc.replace("contside", "diff_SC" )
+        exclusion_listU+= str(exclabel)+","
+        excgroupa=desc.replace("contside", "SC" )
+        excindeces=desc.replace("contside", "" )
+        ind1 = int(excindeces.split("-")[0])
+        ind2 = int(excindeces.split("-")[1])
+        
+        contsideaU+="SC"+str(ind1)+","
+        contsidebU+="SC"+str(ind2)+","
+                
+        excgroupb=""
 
-            if args_explicit:     
-                output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=-1.0,1.0 PERIODIC=NO")
-                output.write('\n')
-                list_diff.append(difflabel)
+        for j in number_residues:
+            if (j != ind1) and (j != ind2):
+                excgroupb+="SC"+str(j)+","
+        output.write('\n')    
+        output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
+        output.write('\n')
+
+        if args_explicit:     
+            output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=-1.0,1.0 PERIODIC=NO")
+            output.write('\n')
+            list_diff.append(difflabel)
 
 
     output.write('\n')
@@ -1389,7 +1446,6 @@ if dffilteredUmF.empty == False:
     output.write('\n')
     output.write("exSCU: COMBINE ARG="+exclusion_listU+" PERIODIC=NO") 
     output.write('\n')
-
 
 temp = listsc.split(",")
 
@@ -1422,8 +1478,8 @@ if args_explicit:
 
 ###############################################################################
 # Adding the coordination to water as auxiliary CV
-
 # add finally the carbon/oxygen/nitrogen atoms coordination to water
+# finger print paper proves that this is not necessarily the optimal choice > might need to update this with fp if Gareth implement this
 
 list_atoms = []
 
@@ -1449,7 +1505,7 @@ output.write('\n')
 if args_explicit:
     to_write = 'PRINT ARG=diffHB_compact,cmap_compact,diffHB_non_compact,cmap_non_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
 else:
-        to_write = 'PRINT ARG=diffHB_compact,cmap_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
+    to_write = 'PRINT ARG=diffHB_compact,cmap_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
 
 to_write_clean = to_write.replace("]"," ").replace("["," ").replace(", ",",").replace(" ,",",").replace("= ","=").replace("'","")
 output.write(to_write_clean)
@@ -1467,10 +1523,10 @@ outfile.close()
 print("Running the final plumed file on the folded trajectory ...")
 os.chdir(args_folded_dir)
 os.system(f'sed -i "s/NLIST/#NLIST/g" {inp_dir}/plumed_final_noduplicate.dat') ##DEBUG
-os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --mf_xtc {args_folded_trajectory} --pdb {args_reference} --mc {args_mcfile} 1> plumed_final_folded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_final_folded.out")
 print("Running the final plumed file on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --mf_xtc {args_unfolded_trajectory} --pdb {args_reference} --mc {args_mcfile} 1> plumed_final_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_final_unfolded.out")
 os.chdir(inp_dir)
 os.system(f'sed -i "s/#NLIST/NLIST/g" {inp_dir}/plumed_final_noduplicate.dat') ##DEBUG
 
@@ -1478,7 +1534,6 @@ print("Reading the final COLVAR file ...")
 df_final = read_colvar('COLVAR_diff', '')
 
 nb_frames = len(pd.read_csv(args_folded_dir+'/COLVAR_diff', sep=r'\s+',skiprows=1, header=None)-1)
-
 
 # Writing final results to log file
 logging.info(' With a stride of ' + str(int(args_stride)) + ', the number of frames used for the filtering was ' + str(nb_frames))
@@ -1497,11 +1552,26 @@ for label, meanF, meanU in zip(df_final['labels'], df_final['meanF'], df_final['
 logging.info(' Finished on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
 logging.info('\n')
 
+print("\n")
+print("Analysis finished.")
+print(' Number of hard H-bonds significant in folded state: '+ str(len(df_hard_sigF)))
+print(' Number of hard H-bonds significant in unfolded state: '+ str(len(df_hard_sigU)))
+print(' Number of soft H-bonds significant in folded state: '+ str(len(df_soft_sigF)))
+print(' Number of soft H-bonds significant in unfolded state: '+ str(len(df_soft_sigU)))
+print(' Number of side chain contacts significant in folded state: '+ str(len(dffilteredFmU)))
+print(' Number of side chain contacts significant in unfolded state: '+ str(len(dffilteredUmF)))
+print("\n")
+
 # output pymol session if requested
 if args_pymol:
     # load the protein and show it as licorice
     cmd.load(args_reference_protein)
-    cmd.show_as("licorice", "all")
+    cmd.show_as("cartoon", "all")
+    licorice_res = "residue " + str(number_residues[0])
+    for i in range(1, len(number_residues)): licorice_res += "," + str(number_residues[i])
+    cmd.show("licorice", licorice_res) # show only subsection in licorice
+    cmd.hide("(all and hydro and (elem C extend 1))") # hide non-polar hydrogens
+    cmd.hide("(solvent and (All))") # hide waters
 
     # loop on Hard-Folded, Hard-Unfolded, Soft-Folded, Soft-Unfolded hbonds
     for index, row in df_hard_soft.iterrows():
@@ -1514,7 +1584,7 @@ if args_pymol:
         state = "Folded" if row ['Significant folded'] else "Unfolded"
         dist_name = f"hbond_{strength}_{state}_{atom_a}_{atom_b}" + "_lda_{0:.2f}".format(row['lda'])
         # draw the distance, hide the label (confusing), and color accordingly
-        cmd.distance(dist_name, f"id {atom_a}", f"id {atom_b}")
+        cmd.distance(dist_name, f"id {atom_a} and not solvent", f"id {atom_b} and not solvent")
         cmd.hide("labels", dist_name)
         cmd.color("red" if row['Hard'] else "yelloworange", dist_name)
  

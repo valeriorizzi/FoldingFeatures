@@ -52,15 +52,15 @@ def read_colvar(name: str):
     return df
 
 # compulsory
-parser.add_argument("-s", "--path_plumed", required=True, type=os.path.abspath, help="directory containing the file plumed_final_noduplicate.dat")
+parser.add_argument("-s", "--path_plumed", required=True, type=os.path.abspath, help="directory containing the file plumed_final_noduplicate.dat and ref_proteinCA_biofeat.pdb")
 parser.add_argument("-f", "--path_folded", required=True, type=os.path.abspath, help="directory containing COLVAR_diff and COLVAR_solvation for the folded trajectory")
 parser.add_argument("-u", "--path_unfolded", required=True, type=os.path.abspath, help="directory containing COLVAR_diff and COLVAR_solvation for the unfolded trajectory")
 parser.add_argument("-minTs", "--temp_min", required=True, nargs='+', type=float, help="Seven space-separated values for TEMP_MIN, from replica 1 to replica 7. Example --temp_min 319 317 315 310 305 298 290")
 parser.add_argument("-maxTs", "--temp_max", required=True, nargs='+', type=float, help="Seven space-separated values for TEMP_MAX, from replica 1 to replica 7. Example --temp_max 325 332 345 360 380 400 420")
 parser.add_argument("-p", "--pace", required=True, type=int, help="PACE for the two main CVs (in simulation steps)")
 parser.add_argument("-b", "--barrier", required=True, type=float, help="BARRIER for the two main CVs (in kJ/mol)")
-parser.add_argument("-rp", "--reference_protein", required=True, type=os.path.abspath, help="reference PDB file for the protein only")
-parser.add_argument("-rca", "--reference_CA", required=True, type=os.path.abspath, help="reference PDB file for the CA atoms only")
+#parser.add_argument("-rp", "--reference_protein", required=True, type=os.path.abspath, help="reference PDB file for the protein only")
+#parser.add_argument("-rca", "--reference_CA", required=True, type=os.path.abspath, help="reference PDB file for the CA atoms only")
 
 # optional
 parser.add_argument("--outdir", required=False, default="oneopes_files", type=str, help="Name for output directory with OneOPES files. Default: oneopes_files")
@@ -82,8 +82,8 @@ args_temp_min = args.temp_min
 args_temp_max = args.temp_max
 args_pace = args.pace
 args_barrier = args.barrier
-args_reference_protein = args.reference_protein
-args_reference_ca = args.reference_CA
+#args_reference_protein = args.reference_protein
+#args_reference_ca = args.reference_CA
 args_outdir = args.outdir
 args_pace_minor = args.pace_minor
 args_barrier_minor = args.barrier_minor
@@ -108,11 +108,17 @@ for i in range(0, len(args_temp_min)):
 # check that starting plumed file with CVs definition is present
 if not os.path.isfile(args_path_plumed + '/plumed_final_noduplicate.dat'):
     sys.exit(error%(f'Missing plumed_final_noduplicate.dat. Please run bioinspired_features.py before running this script or point to the correct directory.'))
+    
+# check that starting pdb file with CAs is present
+if not os.path.isfile(args_path_plumed + '/ref_proteinCA_biofeat.pdb'):
+    sys.exit(error%(f'Missing ref_proteinCA_biofeat.pdb Please run bioinspired_features.py before running this script or point to the correct directory.'))
 
 # check presence of protein reference files
-for file in [args_reference_protein, args_reference_ca]:
-    if not os.path.isfile(file):
-        sys.exit(error%(f'Could not find {file}.'))
+#for file in [args_reference_protein, args_reference_ca]:
+#    if not os.path.isfile(file):
+#        sys.exit(error%(f'Could not find {file}.'))
+#if not os.path.isfile(args_reference_ca):
+#    sys.exit(error%(f'Could not find {args_reference_ca}.'))
 
 # Check if all COLVAR files needed are present
 for file in [[directory,file] for directory in [args_path_folded,args_path_unfolded] for file in ["COLVAR_solvation", "COLVAR_diff"]]:
@@ -125,8 +131,9 @@ if os.path.isdir(args_outdir):
 os.makedirs(args_outdir)
 for i in range(0,8):
     os.makedirs(f'{args_outdir}/rep{i}')
-shutil.copyfile(args_reference_protein, f'{args_outdir}/{args_reference_protein.split('/')[-1]}')
-shutil.copyfile(args_reference_ca, f'{args_outdir}/{args_reference_ca.split('/')[-1]}')
+#shutil.copyfile(args_reference_protein, f'{args_outdir}/{args_reference_protein.split('/')[-1]}')
+#shutil.copyfile(args_reference_ca, f'{args_outdir}/{args_reference_ca.split('/')[-1]}')
+shutil.copyfile(args_path_plumed + '/ref_proteinCA_biofeat.pdb', f'{args_outdir}/ref_proteinCA_biofeat.pdb')
 
 # some on screen info
 print("\n")
@@ -137,8 +144,8 @@ print("Minimum temperature range     : " + str(args_temp_min))
 print("Maximum temperature range     : " + str(args_temp_max))
 print("PACE for main CVs             : " + str(args_pace))
 print("BARRIER for main CVs          : " + str(args_barrier))
-print("Reference file (protein)      : " + str(args_reference_protein))
-print("Reference file (protein CA)   : " + str(args_reference_ca))
+#print("Reference file (protein)      : " + str(args_reference_protein))
+#print("Reference file (protein CA)   : " + str(args_reference_ca))
 print("Name of output directory      : " + str(args_outdir))
 print("PACE for auxiliary CVs        : " + str(args_pace_minor))
 print("BARRIER for auxiliary CVs     : " + str(args_barrier_minor))
@@ -181,19 +188,21 @@ for i in range(0,8):
     for line in open(args_path_plumed + '/plumed_final_noduplicate.dat', "r"):
         if line.lstrip().startswith('PRINT'):
             continue
-        if line.lstrip().startswith('MOLINFO'):
-            output.write(f"MOLINFO MOLTYPE=protein STRUCTURE=../{args_reference_protein.split('/')[-1]}")
-            output.write('\n')
-            continue
+        #if line.lstrip().startswith('MOLINFO'):
+        #    output.write(f"MOLINFO MOLTYPE=protein STRUCTURE=../{args_reference_protein.split('/')[-1]}")
+        #    output.write('\n')
+        #    continue
         if line.lstrip().startswith('rmsd_ca:'):
-            output.write(f"rmsd_ca: RMSD TYPE=OPTIMAL REFERENCE=../{args_reference_ca.split('/')[-1]}")
+            #output.write(f"rmsd_ca: RMSD TYPE=OPTIMAL REFERENCE=../{args_reference_ca.split('/')[-1]}")
+            output.write(f"rmsd_ca: RMSD TYPE=OPTIMAL REFERENCE=../ref_proteinCA_biofeat.pdb")
             output.write('\n')
             continue
         output.write(line)
     output.write('\n')
     output.write('# This OneOPES file has been generated by oneopes_files_generation.py on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
     output.write('\n')
-    output.write(f'# Command : python oneopes_files_generation.py -s {args_path_plumed} -f {args_path_folded} -u {args_path_unfolded} -minTs {" ".join(map(str, args_temp_min))} -maxTs {" ".join(map(str, args_temp_max))} -p {args_pace} -b {args_barrier} -rp {args_reference_protein} -rca {args_reference_ca} --outdir {args_outdir} --pace_minor {args_pace_minor} --barrier_minor {args_barrier_minor} --stride {args_stride} --colvar {args_colvar} --opesx_pace {args_opesx_pace} --opesx_update {args_opesx_update} --opesx_obs {args_opesx_obs}')
+    #output.write(f'# Command : python oneopes_files_generation.py -s {args_path_plumed} -f {args_path_folded} -u {args_path_unfolded} -minTs {" ".join(map(str, args_temp_min))} -maxTs {" ".join(map(str, args_temp_max))} -p {args_pace} -b {args_barrier} -rp {args_reference_protein} -rca {args_reference_ca} --outdir {args_outdir} --pace_minor {args_pace_minor} --barrier_minor {args_barrier_minor} --stride {args_stride} --colvar {args_colvar} --opesx_pace {args_opesx_pace} --opesx_update {args_opesx_update} --opesx_obs {args_opesx_obs}')
+    output.write(f'# Command : python oneopes_files_generation.py -s {args_path_plumed} -f {args_path_folded} -u {args_path_unfolded} -minTs {" ".join(map(str, args_temp_min))} -maxTs {" ".join(map(str, args_temp_max))} -p {args_pace} -b {args_barrier} --outdir {args_outdir} --pace_minor {args_pace_minor} --barrier_minor {args_barrier_minor} --stride {args_stride} --colvar {args_colvar} --opesx_pace {args_opesx_pace} --opesx_update {args_opesx_update} --opesx_obs {args_opesx_obs}')
     output.write('\n')
     output.write('\n')
     output.write('OPES_METAD_EXPLORE ...')
