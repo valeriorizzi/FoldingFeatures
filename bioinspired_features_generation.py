@@ -1163,6 +1163,12 @@ output.write("#############################################################\n\n"
 #output.write('\n')
 #output.write('\n')
 
+# read the COLVAR files for the virtual contacts
+df_virtual = read_colvar('COLVAR_third_filter','virtual_')
+# here we are keeping only the contacts that are more than 4 A away from the H-bond in the folded state and unfolded state in the corresponding dataframe
+df_virtualF = df_virtual[df_virtual['meanF'] > 0.4].dropna()
+df_virtualU = df_virtual[df_virtual['meanU'] > 0.4].dropna()
+
 # TODO
 # Probably change the local definition of purpose that is dangerous and pass it directly in the function call
 
@@ -1180,7 +1186,7 @@ process_HB(df_hard_soft,df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU,outp
 #HBONDS
 purpose = 2
 #output.write('\n')
-output.write('HB_sum: HBONDS...\n')
+output.write('HB_sum: HBONDS ...\n')
 #output.write('\n')
 process_HB(df_hard_soft,df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU,output,purpose)
 output.write('   SUM\n')
@@ -1498,4 +1504,5 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
+
 
