@@ -123,18 +123,21 @@ def read_colvar(name: str, cv_prefix: str):
 
     df = df[df['labels'].str.startswith(cv_prefix)]
     return df
-
+                    
 def process_virtual(df_virtual, dfs_sigHB, output, prefix_HD="NPA", prefix_AB="NPD"):
     """
     Takes as input a dataframe df_virtual and list of dataframes df_sigHB
     Computes the NPD and NPA exclusion lists based on the acceptor/donor candidates in df_virtual and
     the significant hard/soft folded/unfolded hbonds in the dfs_sigHB list of dataframes
+    Prints them in the new and quicker CoordinationMap framework
     """
     df_VH = df_virtual[df_virtual['labels'].str.contains("virtual_HD")].reset_index()
     df_VA = df_virtual[df_virtual['labels'].str.contains("virtual_AB")].reset_index()
 
     HD_list = []
     NPA = ""
+    k=1 #total counter
+    weight = 1.0 #for oxygen in groupB, weight 1
 
     for i in range(len(df_VH)):
         
@@ -158,19 +161,22 @@ def process_virtual(df_virtual, dfs_sigHB, output, prefix_HD="NPA", prefix_AB="N
                     serial += str(match_number[2]) + ","
 
                 label_VH_coordination = f"{prefix_HD}_" + hbond
-                s = (label_VH_coordination + ": COORDINATION GROUPA=" + "VH_" + hbond +
-                    " GROUPB=" + serial + " SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} "
-                    "NLIST NL_CUTOFF=0.8 NL_STRIDE=20")
+                s2 = (" GROUPA=" + "VH_" + hbond + " GROUPB=" + serial) #simplified s, to create a library
+                if k==1:
+                    s = (" GROUPA"+str(k)+"=" + "VH_" + hbond + " GROUPB"+str(k)+"=" + serial + " WEIGHT"+str(k)+"="+str(weight) + " SWITCH"+str(k)+"={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} ")
+                else:
+                    s = (" GROUPA"+str(k)+"=" + "VH_" + hbond + " GROUPB"+str(k)+"=" + serial + " WEIGHT"+str(k)+"="+str(weight))
 
-                if s not in HD_list:
+
+                if s2 not in HD_list:
                     output.write(s + "\n")
-                    HD_list.append(s)
+                    k=k+1
+                    HD_list.append(s2)
                     NPA += label_VH_coordination + ","
-
-    output.write("\n")
 
     AB_list = []
     NPD = ""
+    weight = 0.5 #for hydrogen in groupB, weight 1
 
     for i in range(len(df_VA)):
         label = df_VA['labels'][i]
@@ -189,14 +195,236 @@ def process_virtual(df_virtual, dfs_sigHB, output, prefix_HD="NPA", prefix_AB="N
                     serial += str(match_number[2]) + ","
 
                 label_VA_coordination = f"{prefix_AB}_" + hbond
-                s = (label_VA_coordination + ": COORDINATION GROUPA=" + "VA_" + hbond +
-                    " GROUPB=" + serial + " SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} "
-                    "NLIST NL_CUTOFF=0.8 NL_STRIDE=20")
+                s2 = (" GROUPA=" + "VA_" + hbond + " GROUPB=" + serial) #simplified s, to create a library
+                s = (" GROUPA"+str(k)+"=" + "VA_" + hbond + " GROUPB"+str(k)+"=" + serial + " WEIGHT"+str(k)+"="+str(weight)) #to be printed
 
-                if s not in AB_list:
+                if s2 not in AB_list:
                     output.write(s + "\n")
-                    AB_list.append(s)
+                    k=k+1
+                    AB_list.append(s2)
                     NPD += label_VA_coordination + ","
+                    
+#NEW
+def process_SC(dfF,dfU,output,number_residues,purpose):
+        k=1 #counter of SC contacts
+        weight = 1.0 #weight for the SC F contacts
+
+        for i in range(0,len(dfF)):
+            desc=str(dfF['labels'].iloc[i])
+            excindeces=desc.replace("contside", "" )
+            ind1 = int(excindeces.split("-")[0])
+            ind2 = int(excindeces.split("-")[1])
+
+            if purpose==1:
+                s = "SC"+str(ind1)+"-"+str(ind2)+": CENTER ATOMS="+"SC"+str(ind1)+","+"SC"+str(ind2)
+                output.write(s)
+                output.write('\n')
+
+            if purpose==2:
+                s_cont="   ATOMS"+str(k)+"="+"SC"+str(ind1)+","+"SC"+str(ind2)+" WEIGHT"+str(k)+"="+str(weight)+" SWITCH"+str(k)+"={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}"
+                output.write(s_cont)
+                output.write('\n')
+                k=k+1
+
+            if purpose==3:
+                groupb=""
+                for j in number_residues:
+                    if j==ind1 or j==ind2:
+                        donothing=1
+                    else:
+                        groupb+="SC"+str(j)+","
+                if i==0:
+                    s_cont="   GROUPA"+str(i+1)+"="+"SC"+str(ind1)+"-"+str(ind2)+" GROUPB"+str(i+1)+"="+str(groupb)+" SWITCH"+str(i+1)+"={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5}"
+                else:
+                    s_cont="   GROUPA"+str(i+1)+"="+"SC"+str(ind1)+"-"+str(ind2)+" GROUPB"+str(i+1)+"="+str(groupb)
+                output.write(s_cont)
+                output.write('\n')
+
+        weight = -1.0 #weight for the SC U contacts
+        for i in range(0,len(dfU)):
+            desc=str(dfU['labels'].iloc[i])
+            excindeces=desc.replace("contside", "" )
+            ind1 = int(excindeces.split("-")[0])
+            ind2 = int(excindeces.split("-")[1])
+
+            if purpose==1:
+                s = "SC"+str(ind1)+"-"+str(ind2)+": CENTER ATOMS="+"SC"+str(ind1)+","+"SC"+str(ind2)
+                output.write(s)
+                output.write('\n')
+
+            if purpose==2:
+                s_cont="   ATOMS"+str(k)+"="+"SC"+str(ind1)+","+"SC"+str(ind2)+" WEIGHT"+str(k)+"="+str(weight)+" SWITCH"+str(k)+"={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}"
+                output.write(s_cont)
+                output.write('\n')
+                k=k+1
+
+            if purpose==4:
+                groupb=""
+                for j in number_residues:
+                    if j==ind1 or j==ind2:
+                        donothing=1
+                    else:
+                        groupb+="SC"+str(j)+","
+                if i==0:
+                    s_cont="   GROUPA"+str(i+1)+"="+"SC"+str(ind1)+"-"+str(ind2)+" GROUPB"+str(i+1)+"="+str(groupb)+" SWITCH"+str(i+1)+"={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5}"
+                else:
+                    s_cont="   GROUPA"+str(i+1)+"="+"SC"+str(ind1)+"-"+str(ind2)+" GROUPB"+str(i+1)+"="+str(groupb)
+                output.write(s_cont)
+                output.write('\n')
+
+def process_HB(df_hard_soft, df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU, output, purpose):
+    df_hard_soft = df_hard_soft.sort_values(by=['lda'],ascending=False)
+    s = ""
+    for i in range(0,len(df_hard_soft)):
+        labels = df_hard_soft['labels'][i]
+        match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', labels)
+        match_number = re.findall(r'_(\d+)', labels)
+        original_label = labels.replace("hbond_", "")
+
+        A = match_atomtype[1] # the atom type of A
+        A_serial = match_number[1] # the atom number of A
+    
+        H = match_atomtype[0] # the atom type of H
+        H_serial = match_number[0] # the atom number of H
+    
+        D = hatom_hdonor_dict[match_atomtype[0]] # the atom type of D, corresponding to the match in the dictionnary
+        D_resSeq_temp = table[table['serial'] == int(match_number[0])]['resSeq'].reset_index() # temporary variable, dataframe of the atom number of H
+        D_resSeq = D_resSeq_temp['resSeq'].loc[0] # residue number of D, which is the same one as H
+        D_serial_temp = table[(table['resSeq'] == int(D_resSeq)) & (table['name'] == D)]['serial'].reset_index() # temporary variable, dataframe of the residue corresponding to the residue number of D and its atom type
+        D_serial = D_serial_temp['serial'].loc[0] # atom number of D
+    
+        B = atom_hacceptor_dict[match_atomtype[1]]
+
+        if isinstance(B,str):
+            B_resSeq_temp = table[table['serial'] == int(match_number[1])]['resSeq'].reset_index()
+            B_resSeq = B_resSeq_temp['resSeq'].loc[0]
+            B_serial_temp = table[(table['resSeq'] == int(B_resSeq)) & (table['name'] == B)]['serial'].reset_index()
+            B_serial = B_serial_temp['serial'].loc[0]
+
+            if purpose==1:
+                label_VA = "VA_"+str(original_label)
+                label_VH = "VH_"+str(original_label)
+                s_vA = label_VA +": LINEARGHOST ATOMS="+str(B_serial)+","+str(A_serial)+" COORDINATES=0.25"
+                s_VH = label_VH +": LINEARGHOST ATOMS="+str(D_serial)+","+str(H_serial)+" COORDINATES=0.25"
+                output.write(s_vA)
+                output.write('\n')
+                output.write(s_VH)
+                output.write('\n')
+            elif purpose==2:
+                labels = df_hard_soft['labels'][i] #defines the HB as H/F and hard/soft
+                if labels in list(df_hard_sigF['labels']): # for hard folded
+                    angolo=1
+                    weight=1
+                if labels in list(df_hard_sigU['labels']): # for hard unfolded
+                    angolo=1
+                    weight=-1
+                if labels in list(df_soft_sigF['labels']): # for soft folded
+                    angolo=0
+                    weight=1
+                if labels in list(df_soft_sigU['labels']): # for soft unfolded
+                    angolo=0
+                    weight=-1
+
+                if i==0:
+                    s_cont="   ATOMS"+str(i+1)+"="+str(H_serial)+","+str(A_serial)+","+str(D_serial)+","+str(B_serial)+" ANGLE"+str(i+1)+"="+str(angolo)+" WEIGHT"+str(i+1)+"="+str(weight)+" SWITCH"+str(i+1)+"={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=8}"
+                    output.write(s_cont)
+                    output.write('\n')
+                else:
+                    s_cont="   ATOMS"+str(i+1)+"="+str(H_serial)+","+str(A_serial)+","+str(D_serial)+","+str(B_serial)+" ANGLE"+str(i+1)+"="+str(angolo)+" WEIGHT"+str(i+1)+"="+str(weight)
+                    output.write(s_cont)
+                    output.write('\n')
+            else:
+                label_VA = "VA_"+str(original_label)
+                label_VH = "VH_"+str(original_label)
+                labels = df_hard_soft['labels'][i] #defines the HB as H/F and hard/soft
+
+                if purpose==3: #for F , VH-WO
+                    if labels in list(df_hard_sigF['labels']): # for hard folded
+                        s += label_VH +","
+                elif purpose==4: #for F , VA-WH
+                    if labels in list(df_hard_sigF['labels']): # for hard folded
+                        s += label_VA +","
+                if purpose==5: #for U , VH-WO
+                    if labels in list(df_hard_sigU['labels']): # for hard folded
+                        s += label_VH +","
+                elif purpose==6: #for U , VA-WH
+                    if labels in list(df_hard_sigU['labels']): # for hard folded
+                        s += label_VA +","
+
+        else: # meaning it is ND1 from histidine or SD from methionine that are bound to two different B => COM between two B
+            B_resSeq_temp = table[table['serial'] == int(match_number[1])]['resSeq'].reset_index()
+            B_resSeq = B_resSeq_temp['resSeq'].loc[0]
+
+            B_1 = B[0]
+            B_2 = B[1]
+
+            B_1_serial_temp = table[(table['resSeq'] == int(B_resSeq)) & (table['name'] == B_1)]['serial'].reset_index()
+            B_1_serial = B_1_serial_temp['serial'].loc[0]
+
+            B_2_serial_temp = table[(table['resSeq'] == int(B_resSeq)) & (table['name'] == B_2)]['serial'].reset_index()
+            B_2_serial = B_2_serial_temp['serial'].loc[0]
+
+            label_com = "com_"+str(B_1)+"_"+str(B_1_serial)+"-"+str(B_2)+"_"+str(B_2_serial)
+
+            if purpose==1:
+                com = label_com+": COM ATOMS="+str(B_1_serial)+","+str(B_2_serial)
+                output.write(com)
+                output.write('\n')
+                label_VA = "VA_"+str(original_label)
+                label_VH = "VH_"+str(original_label)
+                s_vA = label_VA +": LINEARGHOST ATOMS="+str(label_com)+","+str(A_serial)+" COORDINATES=0.25"
+                s_VH = label_VH +": LINEARGHOST ATOMS="+str(D_serial)+","+str(H_serial)+" COORDINATES=0.25"
+                output.write(s_vA)
+                output.write('\n')
+                output.write(s_VH)
+                output.write('\n')
+            elif purpose==2:
+                labels = df_hard_soft['labels'][i] #defines the HB as H/F and hard/soft
+                if labels in list(df_hard_sigF['labels']): # for hard folded
+                    angolo=1
+                    weight=1
+                if labels in list(df_hard_sigU['labels']): # for hard unfolded
+                    angolo=1
+                    weight=-1
+                if labels in list(df_soft_sigF['labels']): # for soft folded
+                    angolo=0
+                    weight=1
+                if labels in list(df_soft_sigU['labels']): # for soft unfolded
+                    angolo=0
+                    weight=-1
+
+                if i==0:
+                    s_cont="   ATOMS"+str(i+1)+"="+str(H_serial)+","+str(A_serial)+","+str(D_serial)+","+str(label_com)+" ANGLE"+str(i+1)+"="+str(angolo)+" WEIGHT"+str(i+1)+"="+str(weight)+" SWITCH"+str(i+1)+"={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=8}"
+                    output.write(s_cont)
+                    output.write('\n')
+                else:
+                    s_cont="   ATOMS"+str(i+1)+"="+str(H_serial)+","+str(A_serial)+","+str(D_serial)+","+str(label_com)+" ANGLE"+str(i+1)+"="+str(angolo)+" WEIGHT"+str(i+1)+"="+str(weight)
+                    output.write(s_cont)
+                    output.write('\n')
+            else:
+                label_VA = "VA_"+str(original_label)
+                label_VH = "VH_"+str(original_label)
+                labels = df_hard_soft['labels'][i] #defines the HB as H/F and hard/soft
+
+                if purpose==3: #for F , VH-WO
+                    if labels in list(df_hard_sigF['labels']): # for hard folded
+                        s += label_VH +","
+                elif purpose==4: #for F , VA-WH
+                    if labels in list(df_hard_sigF['labels']): # for hard folded
+                        s += label_VA +","
+                if purpose==5: #for U , VH-WO
+                    if labels in list(df_hard_sigU['labels']): # for hard folded
+                        s += label_VH +","
+                elif purpose==6: #for U , VA-WH
+                    if labels in list(df_hard_sigU['labels']): # for hard folded
+                        s += label_VA +","
+
+    if purpose==3 or purpose==5:
+        s += " GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
+        output.write(s)
+    if purpose==4 or purpose==6:
+        s += " GROUPB=WH SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
+        output.write(s)
 
 # Parse user inputs
 parser = argparse.ArgumentParser(
@@ -216,7 +444,6 @@ parser.add_argument("-w", "--where", required=False, default="protein", type=str
 parser.add_argument("-l", "--lda", required=False, default=0.3, type=float, help="lda value to use for the filtering. Default: 0.3")
 parser.add_argument("-c", "--cutoff", required=False, default=0.6, type=float, help="cutoff value to use for the filtering. Default: 0.6nm")
 parser.add_argument("-s", "--stride", required=False, default=10, type=int, help="STRIDE for the PLUMED file in the filtering steps. Default: 10")
-parser.add_argument("-e", "--explicit", required=False, action='store_true', default=False, help='writes features in the explicit fashion')
 parser.add_argument("-py", "--pymol", required=False, action='store_true', default=False, help='saves a session of pymol with the main hydrogen bonds highlighted; requires the pymol module')
 parser.add_argument("-sy", "--symm", required=False, action='store_true', default=False, help='treats the two F and U symmetrically, i.e. it subtracts NNC from the HB_U')
 
@@ -239,12 +466,11 @@ args_where = args.where
 args_lda = args.lda
 args_cutoff = args.cutoff
 args_stride = args.stride
-args_explicit = args.explicit
 args_pymol = args.pymol
 args_symm = args.symm
 
 full_command = 'python bioinspired_features_generation.py -f '+ str(args_path_folded) + ' -u ' + str(args_path_unfolded) + ' -r ' + str(args_reference_protein) \
-             + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) + (' -e' if args_explicit else '') \
+             + ' -mc ' + str(args_mcfile) + ' -l ' + str(args_lda) + ' -c ' + str(args_cutoff) + ' -s ' + str(args_stride) \
              + (' -py' if args_pymol else '') + (' -sy' if args_symm else '')
 
 # Check format of input
@@ -339,7 +565,6 @@ print("Selection for feature ext.  : " + str(args_where))
 print("Stride                      : " + str(int(args_stride)))
 print("LDA cutoff value            : " + str(args_lda))
 print("Cutoff value for the H-bonds: " + str(args_cutoff))
-print("Writing explicit features   : " + str(args_explicit))
 print("Symmetrical F and U         : " + str(args_symm))
 print("Pymol session generation    : " + str(args_pymol))
 if args_pymol: print(f"Pymol session saved in file : {inp_dir}/symmary_pymol_session.pse")
@@ -409,6 +634,9 @@ df = read_colvar('COLVAR_first_filter', '')
 df = df.drop(df[(df['meanF'] > 0.4) & (df['meanU'] > 0.4) ].index).dropna()
 # to remove the potential contacts within the same residues that don't display any difference between folded and unfolded
 # drop H bonds with average difference between folded and unfolded < 0.01 nm
+# TODO: This is delicate. Might drop things we want to keep. We should
+# i) print what is discarded
+# ii) probably turn it off for folded/unfolded sims. But this will leave in a lot of garbage, so further considerations are needed  
 df = df.drop(df[(df['FminusU'].abs() < 0.01)].index).dropna()
 df = df.sort_values(by=['labels'], ascending=True).reset_index()
 
@@ -470,6 +698,7 @@ for i in range(0,len(df)):
         sang_BAH = label_ang_BAH+": CUSTOM ARG="+label_HB+","+label_HA+","+label_AB+" FUNC=x/(y+z) PERIODIC=NO"
         shbond=label_hbond+": CUSTOM ARG="+label_cont+","+label_ang_DHA+","+label_ang_BAH+" FUNC=x*y*z PERIODIC=NO"
         
+        # TODO: can be compressed with a function
         output.write("# Distance between pairs of atoms of residues "+str(D_resSeq)+" and "+str(B_resSeq))
         output.write('\n')
         output.write(s_cont)
@@ -530,6 +759,7 @@ for i in range(0,len(df)):
         shbond=label_hbond+": CUSTOM ARG="+label_cont+","+label_ang_DHA+","+label_ang_BAH+" FUNC=x*y*z PERIODIC=NO"
         
         output.write("# Distance between pairs of atoms of residues "+str(D_resSeq)+" and "+str(B_resSeq))
+        # TODO: can be compressed with a function
         output.write('\n')
         output.write(s_cont)
         output.write('\n')
@@ -561,6 +791,9 @@ output.write('PRINT STRIDE='+str(args_stride)+ ' ARG=* FILE=COLVAR_second_filter
 output.close()
 
 # if the same hydrogen participates in different H-bonds, then the definition to its distance H-D will be printed multiple times. Therefore we need to eliminate the duplicates.
+# TODO: heavy processing and generates two files. Might be intelligent to:
+# i) Not have duplicates or, if this fails
+# ii) load in memory the file and print it out on the same file to avoid duplicates and reduce garbage
 lines_seen = set() # holds lines already seen
 outfile = open('plumed_2_noduplicate.dat', "w")
 for line in open('plumed_2.dat', "r"):
@@ -618,6 +851,7 @@ df_soft_sigF = df_soft_sigF.sort_values(by=['lda'],ascending=False).reset_index(
 df_soft_sigU = df_soft[df_soft['Significant unfolded']== True]
 df_soft_sigU = df_soft_sigU.sort_values(by=['lda'],ascending=False).reset_index(drop=True)
 
+# TODO
 # sometimes more than 1 H is picked up from aa like K, giving too much weight to that component of the CV. We need to clean them up
 # they should naturally be consecutive
 ### HERE
@@ -897,639 +1131,262 @@ df_solvation_NO = df_solvation_NO.sort_values(by=['lda'],ascending=False).head(3
 
 ############################################################################################
 # Writing the final PLUMED file
-
-print("Writing the final plumed file ...")
-output = open('plumed_final.dat', 'w')
-output.write('# This PLUMED file has been generated by bioinspired_features_generation.py on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.')
-output.write('\n')
-output.write('# Command: ' + full_command)
-output.write('\n')
-output.write('\n')
-output.write("#RESTART")
-output.write('\n')
+print("Writing the final plumed file...")
+output = open('plumed_final.dat', "w")
+output.write('# This PLUMED file has been generated by bioinspired_features_generation.py on '+ str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))+'.\n')
+#output.write('\n')
+output.write('# Command : ' + full_command + '\n\n')
+#output.write('\n')
+#output.write('\n')
+output.write("#RESTART\n")
+#output.write('\n')
+output.write(f'LOAD FILE={inp_dir}/LinearGhost.so\n')
+#output.write('\n')
+output.write(f'LOAD FILE={inp_dir}/CoordinationMapOMP.so\n')
+#output.write('\n')
+output.write(f'LOAD FILE={inp_dir}/HBondsOMP.so\n')
+#output.write('\n')
+#output.write('\n')
 output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model))
-output.write('\n')
-output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model))
-output.write('\n')
-output.write(f'rmsd_ca: RMSD REFERENCE={inp_dir}/{outname_protein_CA_ref} TYPE=OPTIMAL') ##TO DEBUG
-output.write('\n')
-output.write('\n')
+#output.write('\n')
+output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model)+'\n')
+#output.write('\n')
+output.write(f'rmsd_ca: RMSD REFERENCE={inp_dir}/{outname_protein_CA_ref} TYPE=OPTIMAL\n\n')
+#output.write('\n')
+#output.write('\n')
 
-#############################################################
-# H-bonds ###################################################
-#############################################################
+output.write("#############################################################\n")
+#output.write('\n')
+output.write("### Hydrogen Bonds ##########################################\n")
+#output.write('\n')
+output.write("#############################################################\n\n")
+#output.write('\n')
+#output.write('\n')
 
-for i in range(0,len(df_hard_soft)):
-    labels = df_hard_soft['labels'][i]
-    match_atomtype = re.findall(r'([A-Za-z0-9]+)_\d+', labels)
-    match_number = re.findall(r'_(\d+)', labels)
-    original_label = labels.replace("hbond_", "")
+# TODO
+# Probably change the local definition of purpose that is dangerous and pass it directly in the function call
 
-    A = match_atomtype[1] # the atom type of A
-    A_serial = match_number[1] # the atom number of A
-    
-    H = match_atomtype[0] # the atom type of H
-    H_serial = match_number[0] # the atom number of H
-    
-    D = hatom_hdonor_dict[match_atomtype[0]] # the atom type of D, corresponding to the match in the dictionnary
-    D_resSeq_temp = table[table['serial'] == int(match_number[0])]['resSeq'].reset_index() # temporary variable, dataframe of the atom number of H
-    D_resSeq = D_resSeq_temp['resSeq'].loc[0] # residue number of D, which is the same one as H
-    D_serial_temp = table[(table['resSeq'] == int(D_resSeq)) & (table['name'] == D)]['serial'].reset_index() # temporary variable, dataframe of the residue corresponding to the residue number of D and its atom type
-    D_serial = D_serial_temp['serial'].loc[0] # atom number of D
-    
-    B = atom_hacceptor_dict[match_atomtype[1]]
+# purpose is used in the process_HB function. If:
+# 1 it prints LINEARGHOS
+# 2 it prints HBONDS
+# 3 it prints the water coordination for HBF VH-WO
+# 4 it prints the water coordination for HBF VA-WH 
+# 5 it prints the water coordination for HBU VH-WO
+# 6 it prints the water coordination for HBU VA-WH
 
-    if isinstance(B,str): # meaning it is a string so B is only one value
+purpose = 1
+process_HB(df_hard_soft,df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU,output,purpose)
 
-        B_resSeq_temp = table[table['serial'] == int(match_number[1])]['resSeq'].reset_index()
-        B_resSeq = B_resSeq_temp['resSeq'].loc[0]
-        B_serial_temp = table[(table['resSeq'] == int(B_resSeq)) & (table['name'] == B)]['serial'].reset_index()
-        B_serial = B_serial_temp['serial'].loc[0]
-    
-        label_cont = "cont_"+ original_label
-        label_HD = "H-D_"+str(H)+"_"+str(H_serial)+"-"+str(D)+"_"+str(D_serial)
-        label_HA = "H-A_"+str(H)+"_"+str(H_serial)+"-"+str(A)+"_"+str(A_serial)
-        label_HB = "H-B_"+str(H)+"_"+str(H_serial)+"-"+str(B)+"_"+str(B_serial)
-        label_DA = "D-A_"+str(D)+"_"+str(D_serial)+"-"+str(A)+"_"+str(A_serial)
-        label_AB = "A-B_"+str(A)+"_"+str(A_serial)+"-"+str(B)+"_"+str(B_serial)
-        label_ang_DHA = "ang_DHA_"+str(labels)
-        label_ang_BAH = "ang_BAH_"+str(labels)
-        label_hbond = "hbond_"+str(original_label)
-        label_VA = "VA_"+str(original_label)
-        label_VH = "VH_"+str(original_label)
-        label_NWH = "NWH_"+str(original_label)
-        label_NWO = "NWO_"+str(original_label)
-    
-        s_cont=label_cont+": COORDINATION GROUPA="+str(match_number[0])+" GROUPB="+str(match_number[1])+" SWITCH={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=8}"
-        sHD=label_HD+": DISTANCE ATOMS="+str(H_serial)+","+str(D_serial)
-        sHA=label_HA+": DISTANCE ATOMS="+str(H_serial)+","+str(A_serial)
-        sHB=label_HB+": DISTANCE ATOMS="+str(H_serial)+","+str(B_serial)
-        sDA=label_DA+": DISTANCE ATOMS="+str(D_serial)+","+str(A_serial)
-        sAB=label_AB+": DISTANCE ATOMS="+str(A_serial)+","+str(B_serial)
-        sang_DHA = label_ang_DHA+": CUSTOM ARG="+label_DA+","+label_HD+","+label_HA+" FUNC=x/(y+z) PERIODIC=NO"
-        sang_BAH = label_ang_BAH+": CUSTOM ARG="+label_HB+","+label_HA+","+label_AB+" FUNC=x/(y+z) PERIODIC=NO"
-        shbond=label_hbond+": CUSTOM ARG="+label_cont+","+label_ang_DHA+","+label_ang_BAH+" FUNC=x*y*z PERIODIC=NO"
-        s_vA = label_VA +": GHOST ATOMS="+str(B_serial)+","+str(A_serial)+","+str(int(A_serial)+1)+" COORDINATES=0.25,0.0,0.0"
-        s_NWH = label_NWH +": COORDINATION GROUPA="+ label_VA +" GROUPB=WH SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
-        s_VH = label_VH +": GHOST ATOMS="+str(D_serial)+","+str(H_serial)+","+str(int(H_serial)+1)+" COORDINATES=0.25,0.0,0.0"
-        s_NWO = label_NWO +": COORDINATION GROUPA="+ label_VH +" GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
-        
-        output.write("# Distance between pairs of atoms of residues "+str(D_resSeq)+" and "+str(B_resSeq))
-        output.write('\n')
-        output.write(s_cont)
-        output.write('\n')
-        output.write(sHD)
-        output.write('\n')
-        output.write(sHA)
-        output.write('\n')
-        output.write(sHB)
-        output.write('\n')
-        output.write(sDA)
-        output.write('\n')
-        output.write(sAB)
-        output.write('\n')
-        output.write(sang_DHA)
-        output.write('\n')
-        output.write(sang_BAH)
-        output.write('\n')
-        output.write(shbond)
-        output.write('\n')
-        output.write(s_vA)
-        output.write('\n')
-        output.write(s_VH)
-        output.write('\n')
+#HBONDS
+purpose = 2
+#output.write('\n')
+output.write('HB_sum: HBONDS...\n')
+#output.write('\n')
+process_HB(df_hard_soft,df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU,output,purpose)
+output.write('   SUM\n')
+#output.write('\n')
+output.write('...\n')
+#output.write('\n')
 
-        if args_explicit:
-            output.write(s_NWH)
-            output.write('\n')
-            output.write(s_NWO)
-            output.write('\n')
+#COORDINATIONMAP
+if df_hard_sigF.empty == False or df_soft_sigF.empty == False:
+    #output.write('\n')
+    output.write('\nNNC_HB_F: COORDINATIONMAP ...\n')
+    #output.write('\n')
+    process_virtual(df_virtualF, [df_hard_sigF,df_soft_sigF], output, prefix_HD="NPA", prefix_AB="NPD") 
+    output.write('   SUM\n')
+    #output.write('\n')
+    output.write('...\n')
+    #output.write('\n')
+if df_hard_sigU.empty == False or df_soft_sigU.empty == False:
+    #output.write('\n')
+    output.write('\nNNC_HB_U: COORDINATIONMAP ...\n')
+    #output.write('\n')
+    process_virtual(df_virtualU, [df_hard_sigU,df_soft_sigU], output, prefix_HD="NPA", prefix_AB="NPD") 
+    output.write('   SUM\n')
+    #output.write('\n')
+    output.write('...\n')
+    #output.write('\n')
 
-    else: # meaning it is ND1 from histidine or SD from methionine that are bound to two different B => COM between two B
-        B_resSeq_temp = table[table['serial'] == int(match_number[1])]['resSeq'].reset_index()
-        B_resSeq = B_resSeq_temp['resSeq'].loc[0]
-
-        B_1 = B[0]
-        B_2 = B[1]
-        
-        B_1_serial_temp = table[(table['resSeq'] == int(B_resSeq)) & (table['name'] == B_1)]['serial'].reset_index()
-        B_1_serial = B_1_serial_temp['serial'].loc[0]
-
-        B_2_serial_temp = table[(table['resSeq'] == int(B_resSeq)) & (table['name'] == B_2)]['serial'].reset_index()
-        B_2_serial = B_2_serial_temp['serial'].loc[0]
-
-
-        label_cont = "cont_"+str(df3['labels'][i])
-        label_com = "com_"+str(B_1)+"_"+str(B_1_serial)+"-"+str(B_2)+"_"+str(B_2_serial)
-        label_HD = "H-D_"+str(H)+"_"+str(H_serial)+"-"+str(D)+"_"+str(D_serial)
-        label_HA = "H-A_"+str(H)+"_"+str(H_serial)+"-"+str(A)+"_"+str(A_serial)
-        label_HB = "H-B_"+str(H)+"_"+str(H_serial)+"-"+str(B_1)+"_"+str(B_1_serial) # for the sake of the nedt steps I kept only B_1 for the name
-        label_DA = "D-A_"+str(D)+"_"+str(D_serial)+"-"+str(A)+"_"+str(A_serial)
-        label_AB = "A-B_"+str(A)+"_"+str(A_serial)+"-"+str(B_1)+"_"+str(B_1_serial)
-        label_ang_DHA = "ang_DHA_"+str(labels)
-        label_ang_BAH = "ang_BAH_"+str(labels)
-        label_hbond = "hbond_"+str(labels)
-        label_VA = "VA_"+str(original_label)
-        label_VH = "VH_"+str(original_label)
-        label_NWH = "NWH_"+str(original_label)
-        label_NWO = "NWO_"+str(original_label)
-
-        s_cont=label_cont+": COORDINATION GROUPA="+str(match_number[0])+" GROUPB="+str(match_number[1])+" SWITCH={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=8}"
-        com = label_com+": COM ATOMS="+str(B_1_serial)+","+str(B_2_serial)
-        sHD=label_HD+": DISTANCE ATOMS="+str(H_serial)+","+str(D_serial)
-        sHA=label_HA+": DISTANCE ATOMS="+str(H_serial)+","+str(A_serial)
-        sHB=label_HB+": DISTANCE ATOMS="+str(H_serial)+","+str(label_com)
-        sDA=label_DA+": DISTANCE ATOMS="+str(D_serial)+","+str(A_serial)
-        sAB=label_AB+": DISTANCE ATOMS="+str(A_serial)+","+str(label_com)
-        sang_DHA = label_ang_DHA+": CUSTOM ARG="+label_DA+","+label_HD+","+label_HA+" FUNC=x/(y+z) PERIODIC=NO"
-        sang_BAH = label_ang_BAH+": CUSTOM ARG="+label_HB+","+label_HA+","+label_AB+" FUNC=x/(y+z) PERIODIC=NO"
-        shbond=label_hbond+": CUSTOM ARG="+label_cont+","+label_ang_DHA+","+label_ang_BAH+" FUNC=x*y*z PERIODIC=NO"
-        s_VA = label_VA +": GHOST ATOMS="+str(com)+","+str(A_serial)+","+str(int(A_serial)+1)+" COORDINATES=0.25,0.0,0.0"  
-        s_VH = label_VH +": GHOST ATOMS="+str(D_serial)+","+str(H_serial)+","+str(int(H_serial)+1)+" COORDINATES=0.25,0.0,0.0"
-        s_NWH = label_NWH +": COORDINATION GROUPA="+ label_VA +" GROUPB=WH SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
-        s_NWO = label_NWO +": COORDINATION GROUPA="+ label_VH +" GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20"
-        
-        output.write("# Distance between pairs of atoms of residues "+str(D_resSeq)+" and "+str(B_resSeq))
-        output.write('\n')
-        output.write(s_cont)
-        output.write('\n')
-        output.write(sHD)
-        output.write('\n')
-        output.write(sHA)
-        output.write('\n')
-        output.write(sHB)
-        output.write('\n')
-        output.write(sDA)
-        output.write('\n')
-        output.write(sAB)
-        output.write('\n')
-        output.write(sang_DHA)
-        output.write('\n')
-        output.write(sang_BAH)
-        output.write('\n')
-        output.write(shbond)
-        output.write('\n')
-        output.write(s_vA)
-        output.write('\n')
-        output.write(s_VH)
-        output.write('\n')
-
-        if args_explicit:
-            output.write(s_NWH)
-            output.write('\n')
-            output.write(s_NWO)
-            output.write('\n')
-
-#####################################################################################################################
-
-# read the COLVAR files for the virtual contacts
-df_virtual = read_colvar('COLVAR_third_filter','virtual_')
-# here we are keeping only the contacts that are more than 4 A away from the H-bond in the folded state and unfolded state in the corresponding dataframe
-df_virtualF = df_virtual[df_virtual['meanF'] > 0.4].dropna()
-df_virtualU = df_virtual[df_virtual['meanU'] > 0.4].dropna()
-# print in the output colvar file the NPA and NPD exclusion lists for folded and unfolded states
-#NOTE: this is automatically the symmetric case. We might want to add a flag that kills the second call to the function when we run the folded/unfolded case
-process_virtual(df_virtualF, [df_hard_sigF,df_soft_sigF], output, prefix_HD="NPA", prefix_AB="NPD")
-process_virtual(df_virtualU, [df_hard_sigU,df_soft_sigU], output, prefix_HD="NPA", prefix_AB="NPD")
-
-#####################################################################################################################
-    
-output.write('\n')
-output.write('\n')
-output.write('# Speeding up H-bonds')
-output.write('\n')
-
-listcv = ""
-
+#Water coordination
+purpose = 3
 if df_hard_sigF.empty == False:
-    cont_HB_hardF =""
-    NWH_hardF =""
-    NWO_hardF =""
-    NPA_hardF =""
-    NPD_hardF =""
-
-    listcv +="cont_HB_hardF,NWH_hardF,NWO_hardF,NPA_hardF,NPD_hardF,"
-    
-    for i in range(0,len(df_hard_sigF)):
-            desc=str(df_hard_sigF['labels'].iloc[i])
-            NWH=desc.replace('hbond','VA' )
-            NWO=desc.replace('hbond','VH')
-            NPA=desc.replace('hbond','NPA')
-            NPD=desc.replace('hbond','NPD')
-    
-            cont_HB_hardF+=str(desc)+","
-            NWH_hardF+=str(NWH)+","
-            NWO_hardF+=str(NWO)+","
-            NPA_hardF+=str(NPA)+","
-            NPD_hardF+=str(NPD)+","
-    
-    output.write('cont_HB_hardF: COMBINE ARG='+cont_HB_hardF+' PERIODIC=NO')
-    output.write('\n')
-    output.write('NWH_hardF: COORDINATION GROUPA='+NWH_hardF+' GROUPB=WH SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20')
-    output.write('\n')
-    output.write('NWO_hardF: COORDINATION GROUPA='+NWO_hardF+' GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20')
-    output.write('\n')
-    output.write('NPA_hardF: COMBINE ARG=' + NPA_hardF + ' PERIODIC=NO')
-    output.write('\n')
-    output.write('NPD_hardF: COMBINE ARG=' + NPD_hardF + ' PERIODIC=NO')
-    output.write('\n')
-
+    #output.write('\n')
+    output.write('\nNWO_F: COORDINATION GROUPA=')
+    process_HB(df_hard_soft,df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU,output,purpose)
+    purpose = 4
+    #output.write('\n')
+    output.write('\nNWH_F: COORDINATION GROUPA=')
+    process_HB(df_hard_soft,df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU,output,purpose)
 if df_hard_sigU.empty == False:
-    cont_HB_hardU =""
-    NWH_hardU =""
-    NWO_hardU =""
-    NPA_hardU =""
-    NPD_hardU =""
+    purpose = 5
+    #output.write('\n')
+    output.write('\nNWO_U: COORDINATION GROUPA=')
+    process_HB(df_hard_soft,df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU,output,purpose)
+    purpose = 6
+    #output.write('\n')
+    output.write('\nNWH_U: COORDINATION GROUPA=')
+    process_HB(df_hard_soft,df_hard_sigF,df_hard_sigU,df_soft_sigF,df_soft_sigU,output,purpose)
 
-    listcv +="cont_HB_hardU,NWH_hardU,NWO_hardU,NPA_hardU,NPD_hardU,"
-    
-    for i in range(0,len(df_hard_sigU)):
-            desc=str(df_hard_sigU['labels'].iloc[i])
-            NWH=desc.replace('hbond','VA' )
-            NWO=desc.replace('hbond','VH')
-            NPA=desc.replace('hbond','NPA')
-            NPD=desc.replace('hbond','NPD')
-    
-            cont_HB_hardU+=str(desc)+","
-            NWH_hardU+=str(NWH)+","
-            NWO_hardU+=str(NWO)+","
-            NPA_hardU+=str(NPA)+","
-            NPD_hardU+=str(NPD)+","
+#HB CV, assuming that there are some HB contacts, hence cmapH_sum is not empty
+coeff = [1.0, -1.0, -0.125, -0.0625, 1.0 if args_symm else 0.0, 0.125, 0.0625]
 
-    
-    output.write('cont_HB_hardU: COMBINE ARG='+cont_HB_hardU+' PERIODIC=NO')
-    output.write('\n')
-    output.write('NWH_hardU: COORDINATION GROUPA='+NWH_hardU+' GROUPB=WH SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20')
-    output.write('\n')
-    output.write('NWO_hardU: COORDINATION GROUPA='+NWO_hardU+' GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20')
-    output.write('\n')
-    output.write('NPA_hardU: COMBINE ARG=' + NPA_hardU + ' PERIODIC=NO')
-    output.write('\n')
-    output.write('NPD_hardU: COMBINE ARG=' + NPD_hardU + ' PERIODIC=NO') 
-    output.write('\n')
+#output.write('\n')
+#output.write('\n')
+output.write('\n\ndiffHB: COMBINE ARG=HB_sum,')
+if df_hard_sigF.empty == False or df_soft_sigF.empty == False:
+    output.write('NNC_HB_F,')
+    if df_hard_sigF.empty == False:
+        output.write('NWO_F,NWH_F,')
+if df_hard_sigU.empty == False or df_soft_sigU.empty == False:
+    output.write('NNC_HB_U,')
+    if df_hard_sigU.empty == False:
+        output.write('NWO_U,NWH_U,')
+output.write(' COEFFICIENTS='+str(coeff[0])+",")
+if df_hard_sigF.empty == False or df_soft_sigF.empty == False:
+    output.write(str(coeff[1])+",")
+    if df_hard_sigF.empty == False:
+        output.write(str(coeff[2])+","+str(coeff[3])+",")
+if df_hard_sigU.empty == False or df_soft_sigU.empty == False:
+    output.write(str(coeff[4])+",")
+    if df_hard_sigU.empty == False:
+        output.write(str(coeff[5])+","+str(coeff[6])+",")
 
-if df_soft_sigF.empty == False:
-    cont_HB_softFa = ""
-    cont_HB_softFb = ""
-    NPA_softF =""
-    NPD_softF =""
+output.write(' PERIODIC=NO\n\n')
+#output.write('\n')
+#output.write('\n')
 
-    listcv +="cont_HB_softF,NPA_softF,NPD_softF,"
-    
-    for i in range(0,len(df_soft_sigF)):
-            desc=str(df_soft_sigF['labels'].iloc[i])
-            match_number = re.findall(r'_(\d+)', desc)
-            NPA=desc.replace('hbond','NPA')
-            NPD=desc.replace('hbond','NPD')
-    
-            ind1 = match_number[0]
-            ind2 = match_number[1]
-    
-            cont_HB_softFa +=str(ind1)+","
-            cont_HB_softFb+=str(ind2)+","
-            NPA_softF+=str(NPA)+","
-            NPD_softF+=str(NPD)+","
+##########
+#####SC 
+##########
+output.write("#############################################################\n")
+#output.write('\n')
+output.write("### Side Chains #############################################\n")
+#output.write('\n')
+output.write("#############################################################\n\n")
+#output.write('\n')
+#output.write('\n')
 
-    output.write('\n')
-    output.write('cont_HB_softF: COORDINATION GROUPA='+cont_HB_softFa+' GROUPB='+cont_HB_softFb +' SWITCH={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=8} PAIR') 
-    output.write('\n')
-    output.write('NPA_softF: COMBINE ARG=' + NPA_softF + ' PERIODIC=NO')
-    output.write('\n')
-    output.write('NPD_softF: COMBINE ARG=' + NPD_softF + ' PERIODIC=NO') 
-    output.write('\n')
-
-if df_soft_sigU.empty == False:
-    cont_HB_softUa = ""
-    cont_HB_softUb = ""
-    NPA_softU =""
-    NPD_softU =""
-
-    listcv +="cont_HB_softU,NPA_softU,NPD_softU,"
-    
-    for i in range(0,len(df_soft_sigU)):
-            desc=str(df_soft_sigU['labels'].iloc[i])
-            match_number = re.findall(r'_(\d+)', desc)
-            NPA=desc.replace('hbond','NPA')
-            NPD=desc.replace('hbond','NPD')
-    
-            ind1 = match_number[0]
-            ind2 = match_number[1]
-    
-            cont_HB_softUa +=str(ind1)+","
-            cont_HB_softUb+=str(ind2)+","
-            NPA_softU+=str(NPA)+","
-            NPD_softU+=str(NPD)+","
-
-    output.write('cont_HB_softU: COORDINATION GROUPA='+cont_HB_softUa+' GROUPB='+cont_HB_softUb +' SWITCH={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=8} PAIR') 
-    output.write('\n') 
-    output.write('NPA_softU: COMBINE ARG=' + NPA_softU + ' PERIODIC=NO')
-    output.write('\n')
-    output.write('NPD_softU: COMBINE ARG=' + NPD_softU + ' PERIODIC=NO') 
-    output.write('\n')
-
-output.write('\n')
-output.write('# Total')
-output.write('\n')  
-  
-coefficients= {
-    "cont_HB_hardF": 1.0,
-    "NWH_hardF": -1.0/16.0,
-    "NWO_hardF": -1.0/8.0,
-    "NPA_hardF": -1.0,
-    "NPD_hardF": -0.5,
-    
-    "cont_HB_hardU": -1.0,
-    "NWH_hardU": 1.0/16.0,
-    "NWO_hardU": 1.0/8.0,
-    
-    "NPA_hardU": 1.0 if args_symm else 0.0,
-    "NPD_hardU": 0.5 if args_symm else 0.0,
-    
-    "cont_HB_softF": 1.0,
-    "NPA_softF": -1.0,
-    "NPD_softF": -0.5,
-    
-    "cont_HB_softU": -1.0,
-    "NPA_softU": 1.0,
-    "NPD_softU": 0.5,
-}
-
-temp = listcv.split(",")
-coeff = ""
-
-for i in range(0, len(temp)-1):
-    temp2 = coefficients[temp[i]]
-    coeff +=str(temp2)+","
-
-label_cmap_H = 'diffHB_compact'
-output.write(label_cmap_H +': COMBINE ARG=' + listcv + ' COEFFICIENTS='+ coeff +' PERIODIC=NO')
-output.write('\n') 
-
-###########################################
-# normal explicit definitions
-###########################################
-
-if args_explicit:
-     
-    diff_hbond = []
-
-    output.write('\n')
-    output.write('# Combine the H-bonds, non-compact')
-
-    for i in range(0,len(df_hard_soft)):
-        labels = df_hard_soft['labels'][i]
-        original_label = labels.replace("hbond_", "")
-        label_final = "diff_" + str(original_label)
-        label_NPD = "NPD_"+str(original_label)
-        label_NPA = "NPA_"+str(original_label)
-        label_NWH = "NWH_"+str(original_label)
-        label_NWO = "NWO_"+str(original_label)
-        label_hbond = "cont_"+str(original_label)
-        label_final = "diff_" + str(original_label) 
-
-        if labels in list(df_hard_sigF['labels']): # for hard folded
-            s_label_final = label_final + ": CUSTOM ARG=" + labels  + "," + label_NWH + "," + label_NWO + "," + label_NPA  + "," + label_NPD + " VAR=x,y,z,t,w FUNC=x-y/16-z/8-t-w/2 PERIODIC=NO" ##DEBUG
-        if labels in list(df_hard_sigU['labels']): # for hard unfolded
-            s_label_final = label_final + ": CUSTOM ARG=" + labels  + "," + label_NWH + "," + label_NWO + "," + label_NPA  + "," + label_NPD + " VAR=x,y,z,t,w FUNC=-x+y/16+z/8+t+w/2 PERIODIC=NO" ##DEBUG
-        if labels in list(df_soft_sigF['labels']): # for soft folded
-            s_label_final = label_final + ": CUSTOM ARG=" + label_hbond + "," + label_NPA  + "," + label_NPD + " VAR=x,t,w FUNC=x-t-w/2 PERIODIC=NO" ##DEBUG
-        if labels in list(df_soft_sigU['labels']): # for soft unfolded
-            s_label_final = label_final + ": CUSTOM ARG=" + label_hbond + ", VAR=x FUNC=-x PERIODIC=NO"
-
-        diff_hbond.append(label_final)
-        output.write('\n')
-        output.write(s_label_final)
-        output.write('\n')
-
-    output.write('\n')
-    s = "diffHB_non_compact: COMBINE ARG=" + str(list(diff_hbond)) + " COEFFICIENTS=" + str(len(diff_hbond)*"1.0,") + "  PERIODIC=NO"
-    s2 = s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","=").replace("'","")
-    output.write(s2)
-
-#############################################################
-# Side chains ###############################################
-#############################################################
-
-output.write('\n')
-output.write('\n')
-output.write("# Now for the side chains ")
-output.write('\n') 
-
-# to calculate the center of mass of the side chains (SC)
+# to calculate the center of mass of the side chains (SC), all are usually needed
 for res in number_residues:
     p = full_topology.select("protein and residue " + str(res) + " and not backbone and not (type H)") + 1
     p = p.tolist()
-    if len(p) !=0:
+    if len(p) !=0: #normal residues with side chains
         s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
-        output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
-        output.write('\n')
+        output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","=") + '\n')
+        #output.write('\n')
     else:
         p = full_topology.select("protein and residue " + str(res) + " and backbone and name CA") + 1
         s = "SC" + str(res) + ": CENTER ATOMS=" + str(p) + "MASS"
-        output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","="))
-        output.write('\n')
+        output.write(s.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","=") + '\n')
+        #output.write('\n')
 output.write('\n')
 
-#CV of the distances between the SCs (adjacent SC are not taken into account)
-if args_explicit: 
-    if len(number_residues) > 2:
-        for i in range(0,len(number_residues)):
-            res = number_residues[i]
-            for j in range(i+1,len(number_residues)):
-                exclude_res = number_residues[j]
-                # don't consider neighbouring aa
-                if res + 1 == exclude_res: continue
-                label = "contside" + str(res) + "-" + str(exclude_res) + ": "
-                output.write(str(label)+"COORDINATION GROUPA=SC" + str(res) + " GROUPB=SC" + str(exclude_res) + "  SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8}")
-                output.write('\n')
-        output.write('\n')
+# TODO: put purpose in the call of the function
+#purpose is used in the process_SC function. If:
+#1 it prints the SC CENTER virtual atoms
+#2 it prints the SC CONTACTMAP
+#3 it prints the SC NNC F
+#4 it prints the SC NNC U
 
-# calculate the distance between the two center of masse of residues pairs
-#calculate the point where to evaluate water
-if len(number_residues) > 2:
-    for i in range(0,len(number_residues)):
-        res = number_residues[i]
-        for j in range(i+1,len(number_residues)):
-            exclude_res = number_residues[j]
-            # don't consider neighbouring aa
-            if res + 1 == exclude_res: continue
-            label = "SC" + str(res) + "-" + str(exclude_res) + ": "
-            output.write(str(label) + "CENTER ATOMS=SC" + str(res) + ",SC" + str(exclude_res))
-            output.write('\n')
-    output.write('\n')
+#SC CENTER
+purpose = 1
+process_SC(dffilteredFmU,dffilteredUmF,output,number_residues,purpose)
 
-list_diff = []
+#SC CONTACTMAP
+purpose = 2
+#output.write('\n')
+output.write('\nSC_sum: CONTACTMAP ...\n')
+#output.write('\n')
+process_SC(dffilteredFmU,dffilteredUmF,output,number_residues,purpose)
+output.write('   SUM\n')
+#output.write('\n')
+output.write('...\n')
+#output.write('\n')
 
-listsc = ""
-
+#COORDINATIONMAP
 if dffilteredFmU.empty == False:
-    contsideaF =""
-    contsidebF =""
-    exclusion_listF =""
-
-    listsc +="contsideF,exSCF"
-        
-    for i in range(0,len(dffilteredFmU)):
-        desc=str(dffilteredFmU['labels'].iloc[i])
-        exclabel=desc.replace("contside", "exc_SC" )
-        difflabel=desc.replace("contside", "diff_SC" )
-        exclusion_listF+= str(exclabel)+","
-        excgroupa=desc.replace("contside", "SC" )
-        excindeces=desc.replace("contside", "" )
-        ind1 = int(excindeces.split("-")[0])
-        ind2 = int(excindeces.split("-")[1])
-        
-        contsideaF+="SC"+str(ind1)+","
-        contsidebF+="SC"+str(ind2)+","
-                
-        excgroupb=""
-
-        for j in number_residues:
-            if (j != ind1) and (j != ind2):
-                excgroupb+="SC"+str(j)+","
-        output.write('\n')    
-        output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
-        output.write('\n')
-
-        if args_explicit: 
-            output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=1.0,-1.0 PERIODIC=NO")
-            list_diff.append(difflabel)
-            output.write('\n')
-            
-    output.write('\n')
-    output.write("contsideF: COORDINATION GROUPA="+contsideaF+" GROUPB="+contsidebF+" SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8} PAIR") 
-    output.write('\n')
-    output.write("exSCF: COMBINE ARG="+exclusion_listF+" PERIODIC=NO")
-    output.write('\n')
-
-
+    purpose = 3
+    #output.write('\n')
+    output.write('\nNNC_SC_F: COORDINATIONMAP ...\n')
+    #output.write('\n')
+    process_SC(dffilteredFmU,dffilteredUmF,output,number_residues,purpose)
+    output.write('   SUM\n')
+    #output.write('\n')
+    output.write('...\n')
+    #output.write('\n')
 if dffilteredUmF.empty == False:
-    contsideaU =""
-    contsidebU =""
-    exclusion_listU =""
-    
-    if dffilteredFmU.empty == False:
-        listsc +=",contsideU,exSCU"
-    else:
-        listsc +="contsideU,exSCU"
-    
-    for i in range(0,len(dffilteredUmF)):
-        desc=str(dffilteredUmF['labels'].iloc[i])
-        exclabel=desc.replace("contside", "exc_SC" )
-        difflabel=desc.replace("contside", "diff_SC" )
-        exclusion_listU+= str(exclabel)+","
-        excgroupa=desc.replace("contside", "SC" )
-        excindeces=desc.replace("contside", "" )
-        ind1 = int(excindeces.split("-")[0])
-        ind2 = int(excindeces.split("-")[1])
-        
-        contsideaU+="SC"+str(ind1)+","
-        contsidebU+="SC"+str(ind2)+","
-                
-        excgroupb=""
+    purpose = 4
+    #output.write('\n')
+    output.write('\nNNC_SC_U: COORDINATIONMAP ...\n')
+    #output.write('\n')
+    process_SC(dffilteredFmU,dffilteredUmF,output,number_residues,purpose)
+    output.write('   SUM\n')
+    #output.write('\n')
+    output.write('...\n')
+    #output.write('\n')
 
-        for j in number_residues:
-            if (j != ind1) and (j != ind2):
-                excgroupb+="SC"+str(j)+","
-        output.write('\n')    
-        output.write(exclabel+": COORDINATION GROUPA="+excgroupa+" GROUPB="+excgroupb+" SWITCH={RATIONAL D_0=0.0 R_0=0.35 NN=2 MM=10 D_MAX=0.5} NLIST NL_CUTOFF=0.8 NL_STRIDE=20") 
-        output.write('\n')
+#output.write('\n')
+output.write('\ndiffSC: COMBINE ARG=SC_sum,')
+if dffilteredFmU.empty == False:
+    output.write('NNC_SC_F,')
+if dffilteredUmF.empty == False:
+    output.write('NNC_SC_U')
+output.write(' COEFFICIENTS=1.0,')
+if dffilteredFmU.empty == False:
+    output.write('-1.0,')
+if dffilteredUmF.empty == False:
+    output.write('1.0')
 
-        if args_explicit:     
-            output.write(difflabel+": COMBINE ARG="+desc+","+exclabel+" COEFFICIENTS=-1.0,1.0 PERIODIC=NO")
-            output.write('\n')
-            list_diff.append(difflabel)
+output.write(' PERIODIC=NO\n\n')
+#output.write('\n')
+#output.write('\n')
 
+output.write("#############################################################\n")
+#output.write('\n')
+output.write("### Extra Hydration CVs #####################################\n")
+#output.write('\n')
+output.write("#############################################################\n\n")
+#output.write('\n')
+#output.write('\n')
 
-    output.write('\n')
-    output.write("contsideU: COORDINATION GROUPA="+contsideaU+" GROUPB="+contsidebU+" SWITCH={RATIONAL D_0=0.0 R_0=0.80 NN=4 MM=8} PAIR") 
-    output.write('\n')
-    output.write("exSCU: COMBINE ARG="+exclusion_listU+" PERIODIC=NO") 
-    output.write('\n')
-
-temp = listsc.split(",")
-
-coefficients_SC= {
-    "contsideF": 1.0,
-    "exSCF": -1.0,
-    "contsideU": -1.0,
-    "exSCU": 1.0
-}
-
-coeff_SC = ""
-
-for i in range(0, len(temp)):
-    temp2 = coefficients_SC[temp[i]]
-    coeff_SC +=str(temp2)+","
-
-label_cmap_SC = 'cmap_compact'
-output.write(label_cmap_SC+': COMBINE ARG=' + listsc + ' COEFFICIENTS='+ coeff_SC +' PERIODIC=NO')
-output.write('\n')
-
-if args_explicit:
-    output.write('\n')
-    output.write('# Combine the side chain cmap')
-    output.write('\n')
-    output.write('\n')
-    label_cmap_SC_non_compact = "cmap_non_compact"
-    s_cmap = label_cmap_SC_non_compact + ": COMBINE ARG=" + str(list(list_diff)) + " COEFFICIENTS=" + str(len(list_diff)*"1.0,") + "  PERIODIC=NO"
-    s2_cmap = s_cmap.replace("]"," ").replace("["," ").replace(", ",",").replace("= ","=").replace("'","")
-    output.write(s2_cmap)
-
-###############################################################################
-# Adding the coordination to water as auxiliary CV
-# add finally the carbon/oxygen/nitrogen atoms coordination to water
-# finger print paper proves that this is not necessarily the optimal choice > might need to update this with fp if Gareth implement this
-
+#WATER COORDINATION for Extra CVs
 list_atoms = []
-
 for i in range(0,len(df_solvation_C)):
     label = df_solvation_C['labels'][i]
     serial = re.findall(r'(\d+)', label)
-
-    output.write('\n')
-    output.write(str(label)+': COORDINATION GROUPA='+str(serial[0])+ ' GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=10 D_MAX=1.0} NLIST NL_CUTOFF=1.5 NL_STRIDE=20')
-    output.write('\n')
+    output.write(str(label)+': COORDINATION GROUPA='+str(serial[0])+ ' GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=10 D_MAX=1.0} NLIST NL_CUTOFF=1.5 NL_STRIDE=20 \n')
+    #output.write('\n')
     list_atoms.append(str(label))
-    
 for i in range(0,len(df_solvation_NO)):
     label = df_solvation_NO['labels'][i]
     serial = re.findall(r'(\d+)', label)
-    
-    output.write(str(label)+': COORDINATION GROUPA='+str(serial[0])+ ' GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=10 D_MAX=1.0} NLIST NL_CUTOFF=1.5 NL_STRIDE=20')
-    output.write('\n')
+    output.write(str(label)+': COORDINATION GROUPA='+str(serial[0])+ ' GROUPB=WO SWITCH={RATIONAL D_0=0.0 R_0=0.3 NN=6 MM=10 D_MAX=1.0} NLIST NL_CUTOFF=1.5 NL_STRIDE=20 \n')
+    #output.write('\n')
     list_atoms.append(str(label))
+output.write('\n\n')
+#output.write('\n')
 
-output.write('\n')
 
-if args_explicit:
-    to_write = 'PRINT ARG=diffHB_compact,cmap_compact,diffHB_non_compact,cmap_non_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
-else:
-    to_write = 'PRINT ARG=diffHB_compact,cmap_compact STRIDE='+str(args_stride)+ ' FILE=COLVAR_diff'
+output.write('PRINT STRIDE=10 ARG=diffHB,diffSC FILE=COLVAR_diff\n\n')
+#output.write('\n')
+#output.write('\n')
 
-to_write_clean = to_write.replace("]"," ").replace("["," ").replace(", ",",").replace(" ,",",").replace("= ","=").replace("'","")
-output.write(to_write_clean)
 output.close()
+##############################################################
 
-# to remove duplicate rows that would mess up with PLUMED
-lines_seen = set() # holds lines already seen
-outfile = open('plumed_final_noduplicate.dat', "w")
-for line in open('plumed_final.dat', "r"):
-    if line not in lines_seen: # not a duplicate
-        outfile.write(line)
-        lines_seen.add(line)
-outfile.close()
-
+# TODO: remove sed calls, bad practice
 print("Running the final plumed file on the folded trajectory ...")
 os.chdir(args_folded_dir)
-os.system(f'sed -i "s/NLIST/#NLIST/g" {inp_dir}/plumed_final_noduplicate.dat') ##DEBUG
-os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_final_folded.out")
+os.system(f'sed -i "s/NLIST/#NLIST/g" {inp_dir}/plumed_final.dat')
+os.system(f"plumed driver --plumed {inp_dir}/plumed_final.dat --ixtc {args_folded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_final_folded.out")
 print("Running the final plumed file on the unfolded trajectory ...")
 os.chdir(args_unfolded_dir)
-os.system(f"plumed driver --plumed {inp_dir}/plumed_final_noduplicate.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_final_unfolded.out")
+os.system(f"plumed driver --plumed {inp_dir}/plumed_final.dat --ixtc {args_unfolded_trajectory} --mc {args_mcfile} --pdb {inp_dir}/{outname_protein_ref} 1> plumed_final_unfolded.out")
 os.chdir(inp_dir)
-os.system(f'sed -i "s/#NLIST/NLIST/g" {inp_dir}/plumed_final_noduplicate.dat') ##DEBUG
+os.system(f'sed -i "s/#NLIST/NLIST/g" {inp_dir}/plumed_final.dat')
 
+#### Wrap up
 print("Reading the final COLVAR file ...")
 df_final = read_colvar('COLVAR_diff', '')
 
@@ -1554,12 +1411,12 @@ logging.info('\n')
 
 print("\n")
 print("Analysis finished.")
-print(' Number of hard H-bonds significant in folded state: '+ str(len(df_hard_sigF)))
-print(' Number of hard H-bonds significant in unfolded state: '+ str(len(df_hard_sigU)))
-print(' Number of soft H-bonds significant in folded state: '+ str(len(df_soft_sigF)))
-print(' Number of soft H-bonds significant in unfolded state: '+ str(len(df_soft_sigU)))
-print(' Number of side chain contacts significant in folded state: '+ str(len(dffilteredFmU)))
-print(' Number of side chain contacts significant in unfolded state: '+ str(len(dffilteredUmF)))
+print('Number of hard H-bonds significant in folded state: '+ str(len(df_hard_sigF)))
+print('Number of hard H-bonds significant in unfolded state: '+ str(len(df_hard_sigU)))
+print('Number of soft H-bonds significant in folded state: '+ str(len(df_soft_sigF)))
+print('Number of soft H-bonds significant in unfolded state: '+ str(len(df_soft_sigU)))
+print('Number of side chain contacts significant in folded state: '+ str(len(dffilteredFmU)))
+print('Number of side chain contacts significant in unfolded state: '+ str(len(dffilteredUmF)))
 print("\n")
 
 # output pymol session if requested
@@ -1641,7 +1498,3 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
-
-
-
-
