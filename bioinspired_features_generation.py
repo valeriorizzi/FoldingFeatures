@@ -1147,7 +1147,7 @@ output.write(f'LOAD FILE={inp_dir}/CoordinationMapOMP.so\n')
 output.write(f'LOAD FILE={inp_dir}/HBondsOMP.so\n')
 #output.write('\n')
 #output.write('\n')
-output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model))
+output.write('WO: GROUP ATOMS='+str(first_oxygen)+'-'+str(last_oxygen)+':'+str(water_model)+'\n')
 #output.write('\n')
 output.write('WH: GROUP ATOMS='+str(first_oxygen+1)+'-'+str(last_oxygen+1)+':'+str(water_model)+','+str(first_oxygen+2)+'-'+str(last_oxygen+2)+':'+str(water_model)+'\n')
 #output.write('\n')
@@ -1498,3 +1498,4 @@ if args_pymol:
     cmd.save("summary_pymol_session.pse")
 
 print('Done ! Check the bioinspired_features.log for details.')
+
